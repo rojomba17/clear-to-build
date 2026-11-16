@@ -30,8 +30,7 @@ export default {
     const today = String(body.today || "");
 
     const system = `You extract structured purchase-order status updates from supplier emails for a manufacturing materials planner.
-Return ONLY a JSON object, no prose, with exactly these keys:
-{"po": string|null, "milestone": "raw"|"machining"|"oqc"|"shipped"|null, "newShipDate": "YYYY-MM-DD"|null, "qty": number|null, "reason": string|null, "extractionConfidence": "high"|"medium"|"low"}
+Always answer by calling the record_update tool, even when the email is ambiguous: use null for anything you can't determine and lower extractionConfidence.
 Rules:
 - "po" must be one of the open PO line IDs provided (match by PO number, supplier, or part). If unsure, null.
 - "milestone" = the latest production step the supplier says is COMPLETE: raw (raw material received), machining (in machining), oqc (passed outgoing quality check), shipped. Null if not stated.
@@ -42,22 +41,48 @@ Do not guess. Prefer null over a guess.`;
 
     const user = `Today: ${today}\nOpen PO lines:\n${openPOs.map((p) => `- ${p.id} | ${p.supplier} | ${p.part}${p.hasMilestones ? " | tracks milestones" : ""}`).join("\n")}\n\nSupplier email:\n"""${email}"""`;
 
+    // Force structured output: the model must answer by calling this tool, so it can't reply in prose
+    const tool = {
+      name: "record_update",
+      description: "Record the structured PO status update extracted from the supplier email.",
+      input_schema: {
+        type: "object",
+        properties: {
+          po: { type: ["string", "null"], description: "One of the open PO line IDs, or null if unsure" },
+          milestone: { type: ["string", "null"], description: "raw | machining | oqc | shipped, or null" },
+          newShipDate: { type: ["string", "null"], description: "YYYY-MM-DD ship date, or null if not stated" },
+          qty: { type: ["number", "null"] },
+          reason: { type: ["string", "null"], description: "Supplier's stated reason, under 12 words, or null" },
+          extractionConfidence: { type: "string", enum: ["high", "medium", "low"] }
+        },
+        required: ["po", "milestone", "newShipDate", "qty", "reason", "extractionConfidence"]
+      }
+    };
+
     let resp;
     try {
       resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({ model: MODEL, max_tokens: 300, system, messages: [{ role: "user", content: user }] })
+        body: JSON.stringify({ model: MODEL, max_tokens: 1024, thinking: { type: "disabled" }, system, tools: [tool], tool_choice: { type: "tool", name: "record_update" },
+          messages: [{ role: "user", content: user }] })
       });
     } catch (e) { return json({ error: "Upstream unreachable" }, 502, cors); }
-    if (!resp.ok) return json({ error: "Upstream error " + resp.status }, 502, cors);
+    if (!resp.ok) {
+      let detail = ""; try { detail = ((await resp.json()).error || {}).message || ""; } catch {}
+      return json({ error: "Upstream error " + resp.status, sample: detail.slice(0, 200) }, 502, cors);
+    }
 
     const data = await resp.json();
-    const text = (data.content || []).map((c) => c.text || "").join("");
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return json({ error: "No JSON in model output" }, 502, cors);
-    let out;
-    try { out = JSON.parse(match[0]); } catch { return json({ error: "Bad JSON from model" }, 502, cors); }
+    let out = ((data.content || []).find((c) => c.type === "tool_use") || {}).input;
+    if (!out) {
+      // Fallback: look for a JSON object in any text the model returned
+      const text = (data.content || []).map((c) => c.text || "").join("");
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) return json({ error: "No JSON in model output (v2 worker)", stop: data.stop_reason || null,
+        blocks: (data.content || []).map((c) => c.type), sample: text.slice(0, 160) }, 502, cors);
+      try { out = JSON.parse(match[0]); } catch { return json({ error: "Bad JSON from model", sample: text.slice(0, 160) }, 502, cors); }
+    }
 
     // Validate before returning (the UI still requires a human to confirm)
     const ids = new Set(openPOs.map((p) => p.id));

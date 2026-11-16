@@ -2,5 +2,5 @@
 // Leave empty to use the cached (pre-extracted) results for the sample emails.
 window.CTB_CONFIG = {
   WORKER_URL: "https://ctb-extract.rojomba17.workers.dev",
-  VERSION: "v1.9"
+  VERSION: "v2.1"
 };

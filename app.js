@@ -109,6 +109,7 @@
     if (o.resolves) return '<span class="tag yes">Resolves risk</span>';
     if (o.notNeeded) return '<span class="tag no">Not needed</span>';
     if (o.protects) return '<span class="tag protect">Protects line</span>';
+    if (o.getsDate) return '<span class="tag protect">Gets the real date</span>';
     return '<span class="tag no">Doesn\'t close gap</span>';
   }
 
@@ -227,6 +228,7 @@
     if (info.flags.includes("stale")) flags.push(`<span class="bad">no update in ${info.age} days</span>`);
     if (info.flags.includes("noReason")) flags.push('<span class="bad">date changed, no reason</span>');
     if (info.flags.includes("milestoneLate")) flags.push('<span class="bad">milestone late</span>');
+    if (info.flags.includes("delayNoDate")) flags.push('<span class="bad">delay reported, no new date</span>');
     if (info.flags.includes("chronicSlipper")) flags.push(`<span class="warn">typically slips ~${s.medianSlipDays}d</span>`);
     if (awaiting(po)) flags.push('<span class="chip">chase sent, awaiting reply</span>');
     const fsum = `<span class="conf ${info.confName}">${info.confName}</span> ${flags.length ? "· " + flags.join(" · ") : `<span class="sub">· ${esc(info.confReason)}</span>`}`;
@@ -252,6 +254,7 @@
     } else if (po.confirmedDate) facts.push(`Your confirmed delivery date is ${fmt(po.confirmedDate)}.`);
     else facts.push(`Your original promise date is ${fmt(po.promiseDate)}, and we haven't received a confirmation.`);
     if (info.flags.includes("stale")) facts.push(`We haven't had an update since ${fmt(po.lastSignal.at)}.`);
+    if (info.flags.includes("delayNoDate")) facts.push(`On ${fmt(po.openDelay.at)} you let us know about a delay (${po.openDelay.reason.replace(/\.$/, "")}) but didn't have a new date yet.`);
     if (info.flags.includes("noReason")) facts.push(`The date recently moved from ${fmt(po.lastChange.from)} to ${fmt(po.lastChange.to)}; could you share what changed?`);
     const ask = o.pullIn
       ? "That leaves us very little buffer. Is there any way to pull in the ship date? Please reply with your firm ship date and where the order is today."
@@ -394,7 +397,8 @@
   function doApply() {
     const u = { po: $("fPo").value, milestone: $("fMs").value || null, newShipDate: $("fDate").value || null, qty: $("fQty").value ? +$("fQty").value : null, reason: $("fReason").value.trim() || null };
     if (!u.po) { $("impact").innerHTML = '<div class="impact">Select a PO line first.</div>'; return; }
-    if (!u.milestone && !u.newShipDate) { $("impact").innerHTML = '<div class="impact">Nothing to apply: add a milestone or a new ship date.</div>'; return; }
+    if (!u.milestone && !u.newShipDate && !u.reason) { $("impact").innerHTML = '<div class="impact">Nothing to apply: add a milestone, a new ship date, or the delay reason.</div>'; return; }
+    const delayOnly = !u.milestone && !u.newShipDate;
     const before = Object.fromEntries(model.builds.map((b) => [b.id, b.status]));
     const po = poById(u.po);
     const wasChased = awaiting(po);
@@ -404,8 +408,9 @@
     model = R.compute(state, settings);
     const info = model.poInfo[u.po];
     const affected = model.builds.filter((b) => b.lines.some((l) => l.part === po.part));
-    log({ build: "Supplier update", wo: u.po, status: "—", action: `Applied supplier update${wasChased ? " (chase reply)" : ""}`, note: `${src}; new ETA ${fmt(info.eta)}` });
-    ui.lastImpact = `<div class="impact"><b>Applied to ${u.po}.</b> New ETA ${fmt(info.eta)} · confidence <span class="conf ${info.confName}">${info.confName}</span>${wasChased ? " · chase closed" : ""}.
+    const delayed = info.flags.includes("delayNoDate");
+    log({ build: "Supplier update", wo: u.po, status: "—", action: `Applied supplier update${wasChased ? " (chase reply)" : ""}${delayed ? ": delay reported, no new date" : ""}`, note: `${src}; ETA ${fmt(info.eta)}${delayed ? " (unreliable)" : ""}` });
+    ui.lastImpact = `<div class="impact"><b>Applied to ${u.po}.</b> ${delayOnly ? (delayed ? `Delay recorded, no new date: ETA ${fmt(info.eta)} is now unreliable` : `Note recorded; ETA ${fmt(info.eta)} unchanged`) : `New ETA ${fmt(info.eta)}`} · confidence <span class="conf ${info.confName}">${info.confName}</span>${wasChased ? " · chase closed" : ""}.
       <table style="margin-top:6px"><tbody>${affected.map((b) => {
         const rec = b.recs.find((o) => o.recommended);
         return `<tr><td><b>${esc(b.name)}</b><div class="sub">${before[b.id]} → <span class="pill ${statusCls(b.status)}">${b.status}</span></div></td>

@@ -68,6 +68,12 @@
     if (age > s.staleDays && !po.carrier) { conf = 1; flags.push("stale"); reasons.push(`no update in ${age} days`); }
     // A missing reason only matters when the date slips later; pull-ins and confirmations don't need one
     if (po.lastChange && !po.lastChange.reason && diff(po.lastChange.to, po.lastChange.from) > 0) { conf = 1; flags.push("noReason"); reasons.push("date slipped with no reason given"); }
+    // Fresh is not the same as trusted: a reported delay with no new date makes the current date unreliable
+    if (po.openDelay && !po.carrier && !po.asn) {
+      conf = 1; flags.push("delayNoDate");
+      reasons.push(`supplier reported a delay with no new date: ${po.openDelay.reason}`);
+      basis += `; supplier reported a delay on ${fmt(po.openDelay.at)} with no new date, so this date is unreliable`;
+    }
     if (!reasons.length) {
       if (conf === 3) reasons.push(source === "Carrier tracking" ? "in transit with carrier" : "shipped, ship notice received");
       else if (conf === 2) reasons.push(source === "Supplier milestone" ? `milestone update ${age}d ago` : `confirmed ${age}d ago`);
@@ -151,7 +157,10 @@
         } else if (minConf === 1) {
           status = "At Risk";
           const weak = used.find((x) => x.conf === 1);
-          why.push(`Covered on paper, but it relies on a low-confidence signal (${weak.label}: ${weak.po ? poInfo[weak.po].confReason : "unverified"}).`);
+          const wpo = weak.po ? state.poLines.find((p) => p.id === weak.po) : null;
+          if (wpo && poInfo[wpo.id].flags.includes("delayNoDate")) why.push(
+            `Covered by ${poInfo[wpo.id].source === "Supplier-confirmed date" ? "the confirmed " + fmt(wpo.confirmedDate) + " date" : "the current plan"}, but ${sup[wpo.supplier].name} reported a delay with no new date ("${wpo.openDelay.reason}"), so that date can't be trusted.`);
+          else why.push(`Covered on paper, but it relies on a low-confidence signal from ${weak.label}: ${weak.po ? poInfo[weak.po].confReason : "unverified"}.`);
         } else if (slack !== null && slack < s.slackDays) {
           status = "At Risk";
           why.push(`Covered, but with only ${plural(slack, "day")} of slack before the need date (threshold: ${s.slackDays}).`);
@@ -325,7 +334,12 @@
         ? `Cheapest option that closes the ${gap}-unit gap by ${fmt(need)}` + (closing.length > 1 ? ` (vs. ${closing.slice(1).map((o) => o.title + " $" + o.cost.toLocaleString()).join(", ")})` : "") + "."
         : `No option closes the gap by ${fmt(need)}, so protect the line by re-sequencing.`;
     } else {
-      if (L.minConf === 1 && keyPo) {
+      if (L.minConf === 1 && keyPo && ki.flags.includes("delayNoDate")) {
+        // A reported delay: a chase can't resolve the risk, only reveal how big it is
+        opts.push({ type: "chase", title: `Chase ${sup[keyPo.supplier].name}`, cost: 0, getsDate: true, recommended: true, draft: true, po: keyPo.id,
+          effect: `Get the new date and where the order is today. The new date decides whether the build stays clear or needs a fallback.`, time: "Today",
+          whyPick: "The old date can't be trusted. A $0 chase gets the real date." });
+      } else if (L.minConf === 1 && keyPo) {
         opts.push({ type: "chase", title: `Chase ${sup[keyPo.supplier].name}`, cost: 0, resolves: true, recommended: true, draft: true, po: keyPo.id,
           effect: `Get a fresh, reasoned date (${ki.confReason}). If confirmed, the build turns clear.`, time: "Today",
           whyPick: "The quantity is covered; the risk is the signal. A $0 chase fixes the root cause." });
@@ -397,6 +411,9 @@
       po.lastChange = { from: po.confirmedDate || po.promiseDate, to: newDelivery, at: today, reason: u.reason || null };
       po.confirmedDate = newDelivery;
     }
+    // A delay reported without a new date or milestone: keep the old date but stop trusting it until a date arrives
+    if (u.newShipDate || u.milestone) delete po.openDelay;
+    else if (u.reason && !/on track|on schedule|as planned|no change/i.test(u.reason)) po.openDelay = { at: today, reason: u.reason };
     po.lastSignal = { source: "Supplier email (AI-extracted, human-confirmed)", at: today };
     if (po.chase && !po.chase.repliedAt) po.chase.repliedAt = today;
     return po;

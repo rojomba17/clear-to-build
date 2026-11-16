@@ -121,6 +121,24 @@ check("S7c Tidewater confirmation turns Cradle clear", byName(r7, "Weapons-Handl
     rs4.protects === true && rs4.effect.includes("Dec 8 (predicted arrival)") && rs4.effect.includes("WO-44911"), rs4.effect);
 }
 
+// Delay reported with no new date: date kept, confidence drops, chase recommended; a later dated reply clears it
+{
+  const st5 = clone(DATA);
+  R.applyUpdate(st5, { po: "PO-66230-1", newShipDate: null, milestone: null, reason: "Pour pushed; waiting on Inconel heat" });
+  let r5 = R.compute(st5);
+  const bv5 = byName(r5, "Ballast Valve Assembly");
+  check("Delay with no date: Ballast PO drops to Low confidence (fresh but not trusted)",
+    r5.poInfo["PO-66230-1"].conf === 1 && r5.poInfo["PO-66230-1"].flags.includes("delayNoDate"), JSON.stringify(r5.poInfo["PO-66230-1"].flags));
+  check("Delay with no date: Ballast At Risk, recommendation = chase", bv5.status === "At Risk" && rec(bv5).type === "chase", bv5.status + " / " + rec(bv5).type);
+  R.applyUpdate(st5, DATA.sampleEmails[3].cached);
+  r5 = R.compute(st5);
+  check("Later dated reply clears the delay flag and turns Ballast Clear",
+    !r5.poInfo["PO-66230-1"].flags.includes("delayNoDate") && byName(r5, "Ballast Valve Assembly").status === "Clear", byName(r5, "Ballast Valve Assembly").status);
+  const st6 = clone(DATA);
+  R.applyUpdate(st6, { po: "PO-66230-1", reason: "Still on track" });
+  check("'On track' note with no date does not count as a delay", !R.compute(st6).poInfo["PO-66230-1"].flags.includes("delayNoDate"));
+}
+
 // Build-level freshness
 check("Freshness: 13 of 16 builds fresh, 1 aging (Drain Pump), 2 stale (Torpedo Tube, Cradle)",
   res.coverage.builds.fresh === 13 && res.coverage.builds.aging.join() === "Torpedo Tube Drain Pump" && res.coverage.builds.stale.length === 2, JSON.stringify(res.coverage.builds));
