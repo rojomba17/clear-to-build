@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clear-to-Build Decision Board</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="title"><span class="ctb">CLEAR-TO-BUILD</span> Decision Board</div>
+    <div class="asof" id="asof"></div>
+  </header>
+
+  <section class="banner" id="banner"></section>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="builds" class="active">Builds</button>
+    <button data-tab="dock">Dock-to-stock</button>
+    <button data-tab="intake">Supplier updates <span id="waitCount" class="count"></span></button>
+    <button data-tab="indirect" id="tab-indirect" hidden>Indirect orders</button>
+    <button data-tab="log">Decision log <span id="logCount" class="count"></span></button>
+  </nav>
+
+  <section class="controls" id="controls">
+    <label class="toggle"><input type="checkbox" id="onlyRisk" /> At Risk + Blocked only</label>
+    <label>Slack threshold <input type="number" id="slackDays" min="0" max="14" value="3" /> days</label>
+    <label>Signal stale after <input type="number" id="staleDays" min="1" max="30" value="7" /> days</label>
+    <label class="toggle"><input type="checkbox" id="showIndirect" /> Show indirect</label>
+    <button class="ghost" id="resetBtn" title="Restore the original demo data">Reset demo data</button>
+  </section>
+
+  <main id="main">
+    <div id="view-builds" class="view"></div>
+    <div id="view-dock" class="view" hidden></div>
+    <div id="view-intake" class="view" hidden></div>
+    <div id="view-indirect" class="view" hidden></div>
+    <div id="view-log" class="view" hidden></div>
+  </main>
+
+  <aside class="drawer" id="drawer" hidden></aside>
+  <div class="toast" id="toast" hidden></div>
+
+  <footer class="foot">Fictional scenario and synthetic data · Rules are deterministic; AI is used only to read supplier emails (human-confirmed) · <span id="version"></span></footer>
+
+  <script src="config.js"></script>
+  <script src="data.js"></script>
+  <script src="rules.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
