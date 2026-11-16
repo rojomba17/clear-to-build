@@ -62,6 +62,7 @@ tbody tr.row.selected { background: #eef4ff; }
 .tag.no { background: #f2f4f7; color: var(--muted); }
 .tag.yes { background: var(--green-bg); color: var(--green); }
 .tag.cont { background: var(--amber-bg); color: var(--amber); }
+.tag.protect { background: var(--blue-bg); color: var(--accent); border: 1px solid #d1e0ff; }
 .whypick { font-size: 12px; color: var(--accent); margin: 4px 0 8px; }
 textarea, input[type=text], input[type=date], select { width: 100%; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; }
 textarea { resize: vertical; }

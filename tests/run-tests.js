@@ -90,12 +90,35 @@ R.applyUpdate(st, DATA.sampleEmails[2].cached);
 r7 = R.compute(st);
 check("S7c Tidewater confirmation turns Cradle clear", byName(r7, "Weapons-Handling Cradle").status === "Clear", byName(r7, "Weapons-Handling Cradle").status);
 
+// Live-AI case: good-news email with no reason (AI correctly leaves reason null) must not be penalized
+{
+  const st2 = clone(DATA);
+  R.applyUpdate(st2, Object.assign({}, DATA.sampleEmails[0].cached, { reason: null }));
+  const r2 = R.compute(st2);
+  check("Pull-in with no reason stays trusted: Torpedo Tube turns Clear", byName(r2, "Torpedo Tube Assembly").status === "Clear", byName(r2, "Torpedo Tube Assembly").status);
+  const st3 = clone(DATA);
+  R.applyUpdate(st3, { po: "PO-66230-1", newShipDate: "2026-11-28", reason: null });
+  const r3 = R.compute(st3);
+  check("Slip with no reason drops to Low confidence", r3.poInfo["PO-66230-1"].flags.includes("noReason"));
+}
+
 // Re-sequence candidates must have their material in hand by the slot date
 {
   const tt0 = byName(res, "Torpedo Tube Assembly");
   const rs = tt0.recs.find((o) => o.type === "resequence");
   check("Re-sequence suggests a build whose parts are in hand by Nov 24 (not the Dec 2 manifold waiting on a Nov 26 part)",
     rs && !rs.effect.includes("Torpedo Room Hydraulic Manifold"), rs && rs.effect);
+}
+
+// Re-sequence card: names the predicted landing date and is tagged "Protects line", not "Doesn't close gap"
+{
+  const st4 = clone(DATA);
+  R.applyUpdate(st4, { po: "PO-66230-1", newShipDate: "2026-11-28", reason: "Held up at the foundry" });
+  const bv4 = byName(R.compute(st4), "Ballast Valve Assembly");
+  const rs4 = rec(bv4);
+  check("Foundry slip: Ballast blocked, re-sequence recommended", bv4.status === "Blocked" && rs4.type === "resequence", bv4.status + " / " + rs4.type);
+  check("Re-sequence states the date: slip Ballast to Dec 8, pull forward Launch Valve Kit",
+    rs4.protects === true && rs4.effect.includes("Dec 8 (predicted arrival)") && rs4.effect.includes("WO-44911"), rs4.effect);
 }
 
 // Build-level freshness

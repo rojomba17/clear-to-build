@@ -108,6 +108,7 @@
     if (o.closes) return o.contingent ? '<span class="tag cont">Closes gap if approved</span>' : '<span class="tag yes">Closes gap</span>';
     if (o.resolves) return '<span class="tag yes">Resolves risk</span>';
     if (o.notNeeded) return '<span class="tag no">Not needed</span>';
+    if (o.protects) return '<span class="tag protect">Protects line</span>';
     return '<span class="tag no">Doesn\'t close gap</span>';
   }
 
@@ -192,7 +193,7 @@
       return `${wh}: ${a} available, ${spare} spare above safety stock`;
     });
     const signals = [];
-    if (L.short) signals.push(`<span class="bad">Gap −${L.short} · ${L.alloc} of ${L.req} by ${fmt(b.needDate)}</span>`);
+    if (L.short) signals.push(`<span class="bad">Short ${L.short} ·${L.alloc} of ${L.req} by ${fmt(b.needDate)}</span>`);
     else signals.push(`<span class="${L.slack !== null && L.slack < settings.slackDays ? "warn" : "sub"}">${L.alloc} of ${L.req} by ${fmt(b.needDate)}${L.slack !== null ? ` · ${L.slack}d slack` : ""}</span>`);
     if (row.mrbHold) signals.push(`<span class="bad">${row.mrbHold} on MRB hold</span>`);
     if (earlierQty) signals.push(`<span class="sub">${earlierQty} allocated to earlier builds</span>`);
@@ -206,7 +207,7 @@
         ${adds.length ? `<tr><td>= Supply by ${fmt(b.needDate)}</td><td class="n">${totalByNeed}</td></tr>` : ""}
         ${earlierQty ? `<tr><td>− Allocated to earlier-need builds (${L.earlier.map((e) => esc(e.name) + ": " + e.qty).join(", ")})</td><td class="n">−${earlierQty}</td></tr>` : ""}
         <tr class="total"><td>Available for this build by ${fmt(b.needDate)}</td><td class="n ${L.short ? "bad" : ""}">${L.alloc} / ${L.req}</td></tr>
-        ${L.short ? `<tr><td class="bad">Gap</td><td class="n bad">−${L.short}</td></tr>` : ""}
+        ${L.short ? `<tr><td class="bad">Short</td><td class="n bad">−${L.short}</td></tr>` : ""}
         ${L.late.map((u) => `<tr><td class="sub">Arrives too late: ${esc(u.label)} · ${fmt(u.date)}</td><td class="n sub">${u.remaining}</td></tr>`).join("")}
       </tbody></table>
       ${others.length ? `<div class="sub" style="margin-top:6px">Other sites: ${esc(others.join(" · "))}</div>` : ""}</details>`;

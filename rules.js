@@ -66,7 +66,8 @@
 
     const reasons = [];
     if (age > s.staleDays && !po.carrier) { conf = 1; flags.push("stale"); reasons.push(`no update in ${age} days`); }
-    if (po.lastChange && !po.lastChange.reason) { conf = 1; flags.push("noReason"); reasons.push("date changed with no reason given"); }
+    // A missing reason only matters when the date slips later; pull-ins and confirmations don't need one
+    if (po.lastChange && !po.lastChange.reason && diff(po.lastChange.to, po.lastChange.from) > 0) { conf = 1; flags.push("noReason"); reasons.push("date slipped with no reason given"); }
     if (!reasons.length) {
       if (conf === 3) reasons.push(source === "Carrier tracking" ? "in transit with carrier" : "shipped, ship notice received");
       else if (conf === 2) reasons.push(source === "Supplier milestone" ? `milestone update ${age}d ago` : `confirmed ${age}d ago`);
@@ -143,7 +144,8 @@
         const short = need;
         if (short > 0) {
           status = "Blocked";
-          why.push(`Short ${short} of ${req}: only ${alloc} can be available by ${fmt(b.needDate)}.`);
+          why.push(alloc > 0 ? `Short ${short} of ${req}: only ${alloc} can be available by ${fmt(b.needDate)}.`
+                             : `Short ${short} of ${req}: none can be available by ${fmt(b.needDate)}.`);
           if (late.length) { const d = diff(late[0].date, b.needDate); why.push(`Next supply, ${late[0].label}, is expected ${fmt(late[0].date)}: ${plural(d, "day")} after the need date.`); }
           else why.push("No other inbound supply is on order.");
         } else if (minConf === 1) {
@@ -307,10 +309,14 @@
       if (keyPo && ki && ki.conf === 1)
         opts.push({ type: "chase", title: `Chase ${sup[keyPo.supplier].name}`, cost: 0, closes: false, po: keyPo.id,
           effect: `Confirm the real date and reason (${ki.confReason}). Improves confidence; no schedule gain on its own.`, time: "Today", draft: true });
+      // Predicted landing date: first date when inbound supply after the need date covers the shortfall
+      let acc = 0, lands = null;
+      for (const x of L.late) { acc += x.remaining; if (acc >= gap) { lands = x.date; break; } }
+      const slipTo = lands ? `Slip ${b.name} to ${fmt(lands)} (predicted arrival)` : `Hold ${b.name} until supply is secured (nothing inbound covers the gap)`;
       const swap = clearLater[0];
-      opts.push({ type: "resequence", title: "Re-sequence the build", cost: 0, closes: false,
-        effect: swap ? `Slip ${b.name} to when material lands; pull forward ${swap.name} (${swap.id}, clear, needed ${fmt(swap.needDate)}).`
-                     : `Slip ${b.name} to when material lands and notify Production.`, time: "Schedule change" });
+      opts.push({ type: "resequence", title: "Re-sequence the build", cost: 0, closes: false, protects: true, lands,
+        effect: swap ? `${slipTo}; pull forward ${swap.name} (${swap.id}, clear, needed ${fmt(swap.needDate)}).`
+                     : `${slipTo} and notify Production.`, time: "Schedule change" });
 
       const closing = opts.filter((o) => o.closes).sort((a, c) => a.cost - c.cost || (a.contingent ? 1 : 0) - (c.contingent ? 1 : 0));
       const pick = closing[0] || opts.find((o) => o.type === "resequence");

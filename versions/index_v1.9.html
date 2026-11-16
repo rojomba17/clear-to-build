@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clear-to-Build Decision Board</title>
+  <style>:root {
+  --bg: #f6f7f9; --panel: #ffffff; --line: #e3e6ea; --text: #1d2433; --muted: #667085; --accent: #1f3a5f;
+  --red: #b42318; --red-bg: #fee4e2; --amber: #b54708; --amber-bg: #fef0c7; --green: #067647; --green-bg: #dcfae6;
+  --blue-bg: #eef4ff; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text); background: var(--bg); }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: var(--accent); color: #fff; }
+.topbar .title { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
+.topbar .asof { font-family: var(--mono); font-size: 12px; opacity: .9; }
+.banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 12px 20px 0; padding: 9px 14px; background: var(--blue-bg); border: 1px solid #d1e0ff; border-radius: 6px; }
+.banner b { font-size: 14px; }
+.banner .counts { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.tabs { display: flex; gap: 2px; margin: 12px 20px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; padding: 8px 12px; font: inherit; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.count { background: var(--accent); color: #fff; border-radius: 8px; padding: 0 6px; font-size: 11px; }
+.count:empty { display: none; }
+.controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin: 10px 20px 0; color: var(--muted); }
+.controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+.controls .toggle { display: flex; align-items: center; gap: 5px; color: var(--text); }
+button.ghost { border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 4px 10px; font: inherit; cursor: pointer; color: var(--muted); }
+button.primary { border: 0; background: var(--accent); color: #fff; border-radius: 4px; padding: 7px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+button.primary:disabled { opacity: .5; cursor: default; }
+main { margin: 10px 20px 40px; }
+.view { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+.view.padded { padding: 14px 16px; }
+.view-head { padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--muted); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); background: #fafbfc; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr.row { cursor: pointer; }
+tbody tr.row:hover { background: #f8fafc; }
+tbody tr.row.selected { background: #eef4ff; }
+.sub { color: var(--muted); font-size: 11.5px; }
+.mono { font-family: var(--mono); font-size: 12px; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.pill.Blocked { color: var(--red); background: var(--red-bg); }
+.pill.AtRisk { color: var(--amber); background: var(--amber-bg); }
+.pill.Clear { color: var(--green); background: var(--green-bg); }
+.conf { font-weight: 600; }
+.conf.High { color: var(--green); } .conf.Medium { color: var(--amber); } .conf.Low { color: var(--red); }
+.bad { color: var(--red); font-weight: 600; }
+.recCell { white-space: nowrap; }
+.recCell .cost { color: var(--muted); }
+/* drawer */
+.drawer { position: fixed; top: 0; right: 0; width: 480px; max-width: 100%; height: 100vh; overflow-y: auto; background: #fff; border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(16,24,40,.08); z-index: 10; }
+.drawer .dh { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; }
+.drawer .dh h2 { margin: 0 0 2px; font-size: 16px; }
+.drawer .close { border: 0; background: none; font-size: 20px; cursor: pointer; color: var(--muted); }
+.sec { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.sec h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.why { margin: 0; padding-left: 18px; }
+.why li { margin-bottom: 3px; }
+.opt { display: block; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; }
+.opt.rec { border-color: var(--accent); background: #f5f8ff; }
+.opt .ot { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.opt .ot .meta { font-family: var(--mono); font-weight: 400; color: var(--muted); white-space: nowrap; }
+.opt .oe { color: var(--muted); margin-top: 2px; }
+.tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 0 6px; border-radius: 3px; margin-left: 6px; vertical-align: 1px; }
+.tag.rec { background: var(--accent); color: #fff; }
+.tag.no { background: #f2f4f7; color: var(--muted); }
+.tag.yes { background: var(--green-bg); color: var(--green); }
+.tag.cont { background: var(--amber-bg); color: var(--amber); }
+.tag.protect { background: var(--blue-bg); color: var(--accent); border: 1px solid #d1e0ff; }
+.whypick { font-size: 12px; color: var(--accent); margin: 4px 0 8px; }
+textarea, input[type=text], input[type=date], select { width: 100%; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; }
+textarea { resize: vertical; }
+.ledger td { padding: 3px 0; border: 0; }
+.ledger td.n { text-align: right; font-family: var(--mono); }
+.ledger tr.total td { border-top: 1px solid var(--line); font-weight: 700; padding-top: 5px; }
+.milestones { display: flex; gap: 0; margin: 6px 0 4px; }
+.ms { flex: 1; text-align: center; font-size: 11px; color: var(--muted); position: relative; }
+.ms .dot { width: 18px; height: 18px; border-radius: 50%; margin: 0 auto 4px; border: 2px solid #d0d5dd; background: #fff; font-size: 10px; line-height: 14px; }
+.ms.done .dot { background: var(--green); border-color: var(--green); color: #fff; }
+.ms.late .dot { border-color: var(--red); color: var(--red); }
+.ms.late { color: var(--red); font-weight: 600; }
+.ms:not(:last-child)::after { content: ""; position: absolute; top: 9px; left: 60%; width: 80%; height: 2px; background: #e4e7ec; }
+.kv { display: grid; grid-template-columns: 130px 1fr; gap: 3px 10px; }
+.kv .k { color: var(--muted); }
+.draft { background: #fafbfc; border: 1px dashed var(--line); border-radius: 4px; padding: 8px; white-space: pre-wrap; margin-top: 6px; font-size: 12px; }
+.intake { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.intake > div { padding: 14px 16px; }
+.intake > div:first-child { border-right: 1px solid var(--line); }
+.field { margin-bottom: 9px; }
+.field label { display: block; color: var(--muted); font-size: 11.5px; margin-bottom: 2px; }
+.note { font-size: 12px; color: var(--muted); }
+.note.warn { color: var(--amber); }
+.impact { margin-top: 12px; padding: 10px; border-radius: 6px; background: #f5f8ff; border: 1px solid #d1e0ff; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #101828; color: #fff; padding: 8px 14px; border-radius: 6px; z-index: 20; }
+.foot { margin: 0 20px 20px; color: var(--muted); font-size: 11.5px; }
+.empty { padding: 20px; color: var(--muted); }
+.chip { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 10px; font-size: 11px; background: #eef4ff; color: var(--accent); border: 1px solid #d1e0ff; }
+.chip.ok { background: var(--green-bg); color: var(--green); border-color: #abefc6; }
+.draftTa { margin-top: 6px; font-size: 12px; font-family: inherit; background: #fafbfc; }
+a.buildLink { color: var(--accent); font-weight: 600; text-decoration: none; }
+a.buildLink:hover { text-decoration: underline; }
+details.fold > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; align-items: baseline; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary .ft { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 600; }
+details.fold > summary .ft::before { content: "▸ "; color: var(--accent); }
+details.fold[open] > summary .ft::before { content: "▾ "; }
+details.fold > summary .fs { font-size: 12px; }
+details.fold[open] > summary { margin-bottom: 8px; }
+.warn { color: var(--amber); font-weight: 600; }
+button.primary.small { padding: 4px 10px; font-size: 12px; }
+details.fold > summary { padding: 2px 0; }
+details.fold > summary .ft::before { content: none; }
+details.fold > summary .ft::after { content: "Show details ▾"; margin-left: 8px; padding: 1px 8px; border: 1px solid #d1e0ff; border-radius: 10px; background: #eef4ff; color: var(--accent); font-size: 10.5px; letter-spacing: 0; text-transform: none; font-weight: 600; }
+details.fold[open] > summary .ft::after { content: "Hide details ▴"; }
+details.fold > summary:hover .ft::after { background: #dbe7ff; }
+.banner .sub b { font-size: inherit; color: var(--text); }
+details.fold > summary .ft::after { white-space: nowrap; }
+.topbar .title { font-size: 17px; }
+.topbar .title .ctb { font-size: 19px; font-weight: 800; letter-spacing: .8px; }
+.fpill { font: inherit; cursor: pointer; border: 1px solid transparent; }
+button.pill.fpill { border: 1px solid transparent; }
+.fpill:hover { filter: brightness(.96); border-color: currentColor; }
+.fpill.on { border-color: currentColor; box-shadow: 0 0 0 2px rgba(31,58,95,.15); }
+button.fpill.agingC, button.fpill.staleC { background: none; padding: 0 2px; font-weight: 700; text-decoration: underline dotted; }
+.agingC, .agingT { color: var(--amber); }
+.staleC, .staleT { color: var(--red); }
+.agingT, .staleT { font-weight: 500; }
+/* aging vs stale: distinct hues + chip backgrounds */
+button.fpill.agingC, button.fpill.staleC { text-decoration: none; padding: 0 8px; border-radius: 10px; }
+button.fpill.agingC { background: #fdf3c4; color: #7a5a00; }
+button.fpill.staleC { background: var(--red-bg); color: var(--red); }
+.agingT { color: #7a5a00; }
+.staleT { color: var(--red); }
+.agingT { font-weight: 600; } .banner .agingT, .banner .staleT { font-weight: 500; }
+.fscore { display: inline-block; padding: 0 8px; border-radius: 10px; font-weight: 700; }
+.fscore.good { background: var(--green-bg); color: var(--green); }
+.fscore.mid { background: #fdf3c4; color: #7a5a00; }
+.fscore.low { background: var(--red-bg); color: var(--red); }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="title"><span class="ctb">CLEAR-TO-BUILD</span> Decision Board</div>
+    <div class="asof" id="asof"></div>
+  </header>
+
+  <section class="banner" id="banner"></section>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="builds" class="active">Builds</button>
+    <button data-tab="dock">Dock-to-stock</button>
+    <button data-tab="intake">Supplier updates <span id="waitCount" class="count"></span></button>
+    <button data-tab="indirect" id="tab-indirect" hidden>Indirect orders</button>
+    <button data-tab="log">Decision log <span id="logCount" class="count"></span></button>
+  </nav>
+
+  <section class="controls" id="controls">
+    <label class="toggle"><input type="checkbox" id="onlyRisk" /> At Risk + Blocked only</label>
+    <label>Slack threshold <input type="number" id="slackDays" min="0" max="14" value="3" /> days</label>
+    <label>Signal stale after <input type="number" id="staleDays" min="1" max="30" value="7" /> days</label>
+    <label class="toggle"><input type="checkbox" id="showIndirect" /> Show indirect</label>
+    <button class="ghost" id="resetBtn" title="Restore the original demo data">Reset demo data</button>
+  </section>
+
+  <main id="main">
+    <div id="view-builds" class="view"></div>
+    <div id="view-dock" class="view" hidden></div>
+    <div id="view-intake" class="view" hidden></div>
+    <div id="view-indirect" class="view" hidden></div>
+    <div id="view-log" class="view" hidden></div>
+  </main>
+
+  <aside class="drawer" id="drawer" hidden></aside>
+  <div class="toast" id="toast" hidden></div>
+
+  <footer class="foot">Fictional scenario and synthetic data · Rules are deterministic; AI is used only to read supplier emails (human-confirmed) · <span id="version"></span></footer>
+
+  <script>// Set WORKER_URL to your Cloudflare Worker URL to enable live AI email extraction.
+// Leave empty to use the cached (pre-extracted) results for the sample emails.
+window.CTB_CONFIG = {
+  WORKER_URL: "https://ctb-extract.rojomba17.workers.dev",
+  VERSION: "v1.9"
+};
+</script>
+  <script>/* Clear-to-Build Decision Board — synthetic data (fictional scenario).
+   All companies, part numbers, and work orders are invented, except Amazon Business
+   and CDW, which are named in the case prompt. "Today" is fixed so the demo is stable. */
+(function (root) {
+  const DATA = {
+    today: "2026-11-18",
+    productionSite: "QY",
+
+    warehouses: [
+      { id: "QY", name: "Quincy Yard", role: "Production site (line-side stock)" },
+      { id: "GR", name: "Groton DC", role: "Distribution center" },
+      { id: "BA", name: "Baltimore Annex", role: "Overflow warehouse" }
+    ],
+
+    // Transfer lanes into the production site
+    lanes: [
+      { from: "GR", to: "QY", days: 2, cost: 180 },
+      { from: "BA", to: "QY", days: 3, cost: 260 }
+    ],
+
+    // Tier = supplier size / data maturity (not position in the supply chain)
+    suppliers: [
+      // Tier 1: structured feeds (EDI/API), reliable
+      { id: "MER", name: "Meridian Seal & Gasket", tier: 1, channel: "EDI feed", medianSlipDays: 0, transitDays: 2 },
+      { id: "CFS", name: "Coastal Fastener Supply", tier: 1, channel: "EDI feed", medianSlipDays: 0, transitDays: 2 },
+      { id: "NLC", name: "Northline Connectors", tier: 1, channel: "EDI feed", medianSlipDays: 1, transitDays: 2 },
+      { id: "VED", name: "Vector Electronics Distribution", tier: 1, channel: "EDI feed", medianSlipDays: 0, transitDays: 2 },
+      { id: "AMZ", name: "Amazon Business", tier: 1, channel: "API feed", medianSlipDays: 0, transitDays: 2, indirect: true },
+      { id: "CDW", name: "CDW", tier: 1, channel: "EDI feed", medianSlipDays: 1, transitDays: 3, indirect: true },
+      // Tier 2: mid-size, status via a no-login link / portal
+      { id: "HVW", name: "Harbor Valve Works", tier: 2, channel: "Status link", medianSlipDays: 0, transitDays: 2 },
+      { id: "TWH", name: "Tidewater Hydraulics", tier: 2, channel: "Status link", medianSlipDays: 2, transitDays: 2 },
+      { id: "BWC", name: "Bluewater Castings", tier: 2, channel: "Status link", medianSlipDays: 7, transitDays: 3 },
+      { id: "KHC", name: "Keystone Harness Co.", tier: 2, channel: "Status link", medianSlipDays: 2, transitDays: 2 },
+      // Tier 3: small machine shops, email/phone only
+      { id: "KFC", name: "Kestrel Forge Co.", tier: 3, channel: "Email", medianSlipDays: 6, transitDays: 1 },
+      { id: "PRM", name: "Pine Ridge Machining", tier: 3, channel: "Email", medianSlipDays: 4, transitDays: 2 },
+      { id: "ICN", name: "Ironbound CNC", tier: 3, channel: "Email", medianSlipDays: 5, transitDays: 2 }
+    ],
+
+    parts: [
+      { id: "TT-2210-04", name: "Breech door hinge forging", supplier: "KFC" },
+      { id: "HP-0915-11", name: "Titanium gland nut, 3.5in", supplier: "PRM" },
+      { id: "WH-3302-07", name: "Hydraulic actuator rod", supplier: "TWH" },
+      { id: "BV-1180-02", name: "Valve body casting, Inconel", supplier: "BWC" },
+      { id: "MD-7740-03", name: "Muzzle door seal kit", supplier: "MER" },
+      { id: "HA-4410-08", name: "Actuator control valve", supplier: "HVW" },
+      { id: "LC-5521-19", name: "Shielded connector harness", supplier: "KHC" },
+      { id: "SL-3305-01", name: "Loading tray control PCB", supplier: "VED" },
+      { id: "TE-1201-02", name: "Ejection pump impeller", supplier: "ICN" },
+      { id: "TE-1205-06", name: "Ejection pump housing (machined)", supplier: "ICN" },
+      { id: "FS-0110-00", name: "MIL-spec fastener kit", supplier: "CFS" },
+      { id: "CN-2200-12", name: "MIL-spec circular connector", supplier: "NLC" },
+      { id: "BD-0402-05", name: "Breech door O-ring kit", supplier: "MER" },
+      { id: "HM-6610-03", name: "Hydraulic manifold block (machined)", supplier: "ICN" },
+      { id: "BI-2207-01", name: "Breech interlock solenoid", supplier: "VED" },
+      { id: "LV-3390-04", name: "Launch valve poppet", supplier: "HVW" },
+      { id: "SM-4471-02", name: "Elastomer shock mount", supplier: "MER" },
+      { id: "DP-5530-02", name: "Drain pump motor bracket (machined)", supplier: "PRM" },
+      // Indirect (general use)
+      { id: "IT-LAP-14", name: "Laptop, 14in engineering spec", supplier: "CDW", indirect: true },
+      { id: "IT-MON-27", name: "Monitor, 27in", supplier: "CDW", indirect: true },
+      { id: "FA-CHR-01", name: "Ergonomic office chair", supplier: "AMZ", indirect: true }
+    ],
+
+    // Inventory by part and warehouse. mrbHold = non-conforming, awaiting Material Review Board disposition.
+    inventory: [
+      { part: "TT-2210-04", wh: "QY", onHand: 2, mrbHold: 0 },
+      { part: "TT-2210-04", wh: "BA", onHand: 1, mrbHold: 0, safetyStock: 1 },
+      { part: "HP-0915-11", wh: "QY", onHand: 20, mrbHold: 12, inspection: { qty: 4, clearsOn: "2026-11-19" } },
+      { part: "HP-0915-11", wh: "BA", onHand: 6, mrbHold: 0, safetyStock: 2 },
+      { part: "WH-3302-07", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "BV-1180-02", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "MD-7740-03", wh: "QY", onHand: 2, mrbHold: 0 },
+      { part: "MD-7740-03", wh: "GR", onHand: 14, mrbHold: 0, safetyStock: 4 },
+      { part: "HA-4410-08", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "LC-5521-19", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "SL-3305-01", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "TE-1201-02", wh: "QY", onHand: 6, mrbHold: 0 },
+      { part: "TE-1205-06", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "FS-0110-00", wh: "QY", onHand: 120, mrbHold: 0 },
+      { part: "FS-0110-00", wh: "GR", onHand: 300, mrbHold: 0, safetyStock: 100 },
+      { part: "CN-2200-12", wh: "QY", onHand: 30, mrbHold: 0 },
+      { part: "BD-0402-05", wh: "QY", onHand: 30, mrbHold: 0 },
+      { part: "HM-6610-03", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "BI-2207-01", wh: "QY", onHand: 0, mrbHold: 0 },
+      { part: "LV-3390-04", wh: "QY", onHand: 2, mrbHold: 0 },
+      { part: "SM-4471-02", wh: "QY", onHand: 40, mrbHold: 0 },
+      { part: "DP-5530-02", wh: "QY", onHand: 0, mrbHold: 0 }
+    ],
+
+    // Upcoming builds (work orders) at the production site, with BOM requirements
+    builds: [
+      { id: "WO-44818", name: "Muzzle Door Actuator", needDate: "2026-11-23", bom: [["MD-7740-03", 10], ["CN-2200-12", 2]] },
+      { id: "WO-44820", name: "Hydraulic Actuator Kit A", needDate: "2026-11-23", bom: [["HA-4410-08", 25], ["FS-0110-00", 10]] },
+      { id: "WO-44812", name: "Torpedo Tube Assembly", needDate: "2026-11-24", bom: [["TT-2210-04", 6], ["FS-0110-00", 20], ["CN-2200-12", 4]] },
+      { id: "WO-44826", name: "Hydraulic Actuator Kit B", needDate: "2026-11-26", bom: [["HA-4410-08", 20], ["FS-0110-00", 10]] },
+      { id: "WO-44790", name: "Hull Penetrator Kit", needDate: "2026-11-27", bom: [["HP-0915-11", 16], ["BD-0402-05", 4]] },
+      { id: "WO-44876", name: "Launcher Control Cabinet", needDate: "2026-12-01", bom: [["LC-5521-19", 3], ["CN-2200-12", 6]] },
+      { id: "WO-44831", name: "Weapons-Handling Cradle", needDate: "2026-12-03", bom: [["WH-3302-07", 4], ["FS-0110-00", 20]] },
+      { id: "WO-44855", name: "Ballast Valve Assembly", needDate: "2026-12-05", bom: [["BV-1180-02", 12], ["BD-0402-05", 6]] },
+      { id: "WO-44882", name: "Torpedo Ejection Pump", needDate: "2026-12-10", bom: [["TE-1201-02", 2], ["TE-1205-06", 2]] },
+      { id: "WO-44890", name: "Stores Loading Tray", needDate: "2026-12-12", bom: [["SL-3305-01", 4], ["FS-0110-00", 15]] },
+      { id: "WO-44899", name: "Breech Door Seal Set", needDate: "2026-12-15", bom: [["BD-0402-05", 8]] },
+      { id: "WO-44904", name: "Torpedo Room Hydraulic Manifold", needDate: "2026-12-02", bom: [["HM-6610-03", 2], ["FS-0110-00", 10]] },
+      { id: "WO-44906", name: "Breech Door Interlock Assembly", needDate: "2026-12-04", bom: [["BI-2207-01", 6], ["CN-2200-12", 4]] },
+      { id: "WO-44911", name: "Weapons Launch Valve Kit", needDate: "2026-12-08", bom: [["LV-3390-04", 8]] },
+      { id: "WO-44915", name: "Shock Isolation Mount Kit", needDate: "2026-12-14", bom: [["SM-4471-02", 16], ["BD-0402-05", 6]] },
+      { id: "WO-44918", name: "Torpedo Tube Drain Pump", needDate: "2026-12-18", bom: [["DP-5530-02", 4], ["FS-0110-00", 8]] }
+    ],
+
+    /* Open PO lines. Signal fields (strongest wins): received > carrier > asn > milestone > confirmedDate > promiseDate.
+       confirmedDate / promiseDate = expected delivery at our dock.
+       milestone stages: planned dates + done dates; ship stage drives the ETA (ship + transit).
+       lastSignal = most recent update from any channel. lastChange = most recent date change (reason may be missing).
+       expedite = what the supplier/carrier can offer: days earlier and cost. */
+    poLines: [
+      { id: "PO-77310-1", part: "TT-2210-04", supplier: "KFC", qty: 4, dest: "QY",
+        promiseDate: "2026-11-21",
+        milestone: { stages: [
+          { key: "raw", label: "Raw material received", planned: "2026-11-06", done: "2026-11-06" },
+          { key: "machining", label: "In machining", planned: "2026-11-10", done: "2026-11-10" },
+          { key: "oqc", label: "Outgoing QC passed", planned: "2026-11-14", done: null },
+          { key: "shipped", label: "Shipped", planned: "2026-11-20", done: null } ] },
+        lastSignal: { source: "Supplier email", at: "2026-11-10" },
+        expedite: { days: 2, cost: 1200, note: "Overtime machining + next-day freight" } },
+
+      { id: "PO-77420-1", part: "HP-0915-11", supplier: "PRM", qty: 10, dest: "QY",
+        promiseDate: "2026-11-24", confirmedDate: "2026-12-01",
+        lastSignal: { source: "Supplier email", at: "2026-11-15" },
+        lastChange: { from: "2026-11-24", to: "2026-12-01", at: "2026-11-15", reason: "Thread-gauge rework on first batch" },
+        expedite: { days: 3, cost: 800, note: "Weekend shift" } },
+
+      { id: "PO-66105-1", part: "WH-3302-07", supplier: "TWH", qty: 4, dest: "QY",
+        promiseDate: "2026-11-28", confirmedDate: "2026-11-28",
+        lastSignal: { source: "Status link", at: "2026-11-06" } },
+
+      { id: "PO-66230-1", part: "BV-1180-02", supplier: "BWC", qty: 12, dest: "QY",
+        promiseDate: "2026-11-27", confirmedDate: "2026-11-27",
+        lastSignal: { source: "Status link", at: "2026-11-16" } },
+
+      { id: "PO-55018-1", part: "MD-7740-03", supplier: "MER", qty: 20, dest: "QY",
+        promiseDate: "2026-11-26",
+        asn: { shipDate: "2026-11-24", eta: "2026-11-26" },
+        lastSignal: { source: "EDI 856 ship notice", at: "2026-11-17" },
+        expedite: { days: 4, cost: 1900, note: "Air freight upgrade" } },
+
+      { id: "PO-66340-1", part: "HA-4410-08", supplier: "HVW", qty: 30, dest: "QY",
+        promiseDate: "2026-11-19",
+        carrier: { eta: "2026-11-19", status: "Out for delivery tomorrow" },
+        lastSignal: { source: "Carrier tracking", at: "2026-11-18" },
+        partialOf: 50, note: "Partial shipment: 30 of 50 shipped" },
+
+      { id: "PO-66340-2", part: "HA-4410-08", supplier: "HVW", qty: 20, dest: "QY",
+        promiseDate: "2026-11-19", confirmedDate: "2026-11-28",
+        lastSignal: { source: "Status link", at: "2026-11-17" },
+        lastChange: { from: "2026-11-19", to: "2026-11-28", at: "2026-11-17", reason: "Valve seat rework on remaining 20 units" },
+        partialOf: 50, note: "Remainder of partial shipment",
+        expedite: { days: 3, cost: 650, note: "Prioritize rework line" } },
+
+      { id: "PO-66412-1", part: "LC-5521-19", supplier: "KHC", qty: 3, dest: "QY",
+        promiseDate: "2026-11-24",
+        asn: { shipDate: "2026-11-27", eta: "2026-11-29" },
+        lastSignal: { source: "Ship notice", at: "2026-11-17" },
+        lastChange: { from: "2026-11-24", to: "2026-11-29", at: "2026-11-17", reason: "Connector backshell backorder, now resolved" },
+        expedite: { days: 2, cost: 1400, note: "Next-day air" } },
+
+      { id: "PO-55120-1", part: "SL-3305-01", supplier: "VED", qty: 4, dest: "QY",
+        promiseDate: "2026-11-20",
+        asn: { shipDate: "2026-11-18", eta: "2026-11-20" },
+        lastSignal: { source: "EDI 856 ship notice", at: "2026-11-17" } },
+
+      { id: "PO-77505-1", part: "TE-1205-06", supplier: "ICN", qty: 2, dest: "QY",
+        promiseDate: "2026-11-30",
+        milestone: { stages: [
+          { key: "raw", label: "Raw material received", planned: "2026-11-09", done: "2026-11-09" },
+          { key: "machining", label: "In machining", planned: "2026-11-12", done: "2026-11-12" },
+          { key: "oqc", label: "Outgoing QC passed", planned: "2026-11-24", done: null },
+          { key: "shipped", label: "Shipped", planned: "2026-11-28", done: null } ] },
+        lastSignal: { source: "Supplier email", at: "2026-11-17" } },
+
+      { id: "PO-55201-1", part: "FS-0110-00", supplier: "CFS", qty: 200, dest: "QY",
+        promiseDate: "2026-11-20",
+        asn: { shipDate: "2026-11-18", eta: "2026-11-20" },
+        lastSignal: { source: "EDI 856 ship notice", at: "2026-11-18" } },
+
+      { id: "PO-55210-1", part: "CN-2200-12", supplier: "NLC", qty: 40, dest: "QY",
+        promiseDate: "2026-12-02", confirmedDate: "2026-12-02",
+        lastSignal: { source: "EDI 855 order ack", at: "2026-11-16" } },
+
+      { id: "PO-55230-1", part: "BD-0402-05", supplier: "MER", qty: 50, dest: "QY",
+        promiseDate: "2026-12-08", confirmedDate: "2026-12-08",
+        lastSignal: { source: "EDI 855 order ack", at: "2026-11-17" } },
+
+      { id: "PO-77612-1", part: "HM-6610-03", supplier: "ICN", qty: 2, dest: "QY",
+        promiseDate: "2026-11-26",
+        milestone: { stages: [
+          { key: "raw", label: "Raw material received", planned: "2026-11-11", done: "2026-11-11" },
+          { key: "machining", label: "In machining", planned: "2026-11-14", done: "2026-11-14" },
+          { key: "oqc", label: "Outgoing QC passed", planned: "2026-11-21", done: null },
+          { key: "shipped", label: "Shipped", planned: "2026-11-24", done: null } ] },
+        lastSignal: { source: "Supplier email", at: "2026-11-17" } },
+
+      { id: "PO-55305-1", part: "BI-2207-01", supplier: "VED", qty: 6, dest: "QY",
+        promiseDate: "2026-11-20",
+        asn: { shipDate: "2026-11-18", eta: "2026-11-20" },
+        lastSignal: { source: "EDI 856 ship notice", at: "2026-11-18" } },
+
+      { id: "PO-66455-1", part: "LV-3390-04", supplier: "HVW", qty: 6, dest: "QY",
+        promiseDate: "2026-12-01", confirmedDate: "2026-12-01",
+        lastSignal: { source: "Status link", at: "2026-11-16" } },
+
+      { id: "PO-55318-1", part: "BD-0402-05", supplier: "MER", qty: 40, dest: "QY",
+        promiseDate: "2026-11-21",
+        carrier: { eta: "2026-11-21", status: "In transit" },
+        lastSignal: { source: "Carrier tracking", at: "2026-11-18" } },
+
+      { id: "PO-55322-1", part: "SM-4471-02", supplier: "MER", qty: 24, dest: "QY",
+        promiseDate: "2026-11-19",
+        asn: { shipDate: "2026-11-17", eta: "2026-11-19" },
+        lastSignal: { source: "EDI 856 ship notice", at: "2026-11-17" } },
+
+      { id: "PO-77640-1", part: "DP-5530-02", supplier: "PRM", qty: 4, dest: "QY",
+        promiseDate: "2026-12-08",
+        lastSignal: { source: "PO acknowledgment", at: "2026-11-13" } },
+
+      // Indirect (general use) — hidden by default
+      { id: "PO-90011-1", part: "IT-LAP-14", supplier: "CDW", qty: 12, dest: "QY", indirect: true, requestedDate: "2026-11-25",
+        promiseDate: "2026-11-21", asn: { shipDate: "2026-11-18", eta: "2026-11-21" },
+        lastSignal: { source: "EDI 856 ship notice", at: "2026-11-17" } },
+      { id: "PO-90012-1", part: "FA-CHR-01", supplier: "AMZ", qty: 20, dest: "QY", indirect: true, requestedDate: "2026-11-20",
+        promiseDate: "2026-11-20", carrier: { eta: "2026-11-24", status: "In transit, delayed at hub" },
+        lastSignal: { source: "Carrier tracking", at: "2026-11-18" } },
+      { id: "PO-90013-1", part: "IT-MON-27", supplier: "CDW", qty: 12, dest: "QY", indirect: true, requestedDate: "2026-12-01",
+        promiseDate: "2026-11-26", confirmedDate: "2026-11-26",
+        lastSignal: { source: "EDI 855 order ack", at: "2026-11-09" } }
+    ],
+
+    // Sample supplier emails for the intake demo (with cached extractions used if AI is unavailable)
+    sampleEmails: [
+      { id: "S1", label: "Kestrel Forge: QC passed, shipping tomorrow (good news)",
+        text: "Hi team, quick update on PO 77310 (hinge forgings). The 4 pcs cleared final QC this morning, paperwork attached. Booking ground freight to ship out tomorrow 11/19, should be at Quincy the day after. Thanks, Dave, Kestrel Forge",
+        cached: { po: "PO-77310-1", milestone: "oqc", newShipDate: "2026-11-19", qty: 4, reason: "Cleared final QC; shipping ground", extractionConfidence: "high" } },
+      { id: "S2", label: "Kestrel Forge: heat-treat delay (bad news)",
+        text: "Hey, bad news on 77310. Our heat treat vendor had a furnace go down, so the hinge forgings are stuck. Best guess QC on the 25th and we ship the 27th. Sorry about this, will keep you posted. Dave",
+        cached: { po: "PO-77310-1", milestone: null, newShipDate: "2026-11-27", qty: 4, reason: "Heat-treat vendor furnace down", extractionConfidence: "high" } },
+      { id: "S3", label: "Tidewater Hydraulics: date confirmed",
+        text: "Re: PO 66105 actuator rods. Confirming all 4 rods finish plating Friday and ship Mon 11/24. Tracking to follow. — Maria, Tidewater Hydraulics",
+        cached: { po: "PO-66105-1", milestone: null, newShipDate: "2026-11-24", qty: 4, reason: "Plating complete Friday; ship Monday", extractionConfidence: "high" } },
+      { id: "S4", label: "Bluewater Castings: can pull in (reply to chase)",
+        text: "Hi, got your note on PO 66230. We moved the Inconel valve bodies up in the pour schedule. All 12 will ship Friday 11/21. — Tom, Bluewater Castings",
+        cached: { po: "PO-66230-1", milestone: null, newShipDate: "2026-11-21", qty: 12, reason: "Moved up in pour schedule", extractionConfidence: "high" } }
+    ],
+
+    // Internal transfers created by planner decisions (starts empty)
+    transfers: []
+  };
+
+  root.CTB_DATA = DATA;
+  if (typeof module !== "undefined") module.exports = DATA;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+  <script>/* Clear-to-Build Decision Board — deterministic rules.
+   Every number here is explainable. No AI is used in this file. */
+(function (root) {
+  // ---------- dates ----------
+  const DAY = 86400000;
+  const toDay = (s) => Math.round(Date.parse(s + "T00:00:00Z") / DAY);
+  const fromDay = (n) => new Date(n * DAY).toISOString().slice(0, 10);
+  const addDays = (s, n) => fromDay(toDay(s) + n);
+  const diff = (a, b) => toDay(a) - toDay(b); // a - b in days
+  const fmt = (s) => {
+    if (!s) return "—";
+    const d = new Date(s + "T00:00:00Z");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  };
+  const lcFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+  const CONF_NAME = { 3: "High", 2: "Medium", 1: "Low" };
+  const STATUS_ORDER = { Blocked: 0, "At Risk": 1, Clear: 2 };
+  const DEFAULT_SETTINGS = { slackDays: 3, staleDays: 7, freshHours: 72 };
+
+  function index(list, key = "id") { const m = {}; list.forEach((x) => (m[x[key]] = x)); return m; }
+
+  // ---------- ETA + confidence for a PO line ----------
+  // Strongest signal wins: received > carrier > ship notice > supplier milestone > confirmed date > promise date.
+  function etaFor(po, sup, today, s) {
+    if (po.received) return null;
+    let eta, conf, source, basis;
+    const age = diff(today, po.lastSignal.at);
+    const flags = [];
+
+    if (po.carrier) {
+      eta = po.carrier.eta; conf = 3; source = "Carrier tracking";
+      basis = `Carrier ETA ${fmt(eta)}` + (po.carrier.status ? ` (${po.carrier.status})` : "");
+    } else if (po.asn) {
+      eta = po.asn.eta; conf = 3; source = "Ship notice";
+      basis = `Shipped ${fmt(po.asn.shipDate)}, arriving ${fmt(eta)}`;
+    } else if (po.milestone) {
+      const st = po.milestone.stages;
+      const ship = st.find((x) => x.key === "shipped");
+      const next = st.find((x) => !x.done);
+      const late = next && diff(today, next.planned) > 0 ? diff(today, next.planned) : 0;
+      const projShip = addDays(ship.planned, late);
+      eta = addDays(projShip, sup.transitDays); conf = 2; source = "Supplier milestone";
+      const cur = [...st].reverse().find((x) => x.done);
+      basis = late > 0
+        ? `"${next.label}" was due ${fmt(next.planned)} and is ${plural(late, "day")} late, so ship moves to ~${fmt(projShip)}`
+        : `On track at "${cur ? cur.label : "Not started"}"; ships ~${fmt(projShip)}`;
+      if (late > 0) flags.push("milestoneLate");
+    } else if (po.confirmedDate) {
+      eta = addDays(po.confirmedDate, sup.medianSlipDays); conf = 2; source = "Supplier-confirmed date";
+      basis = sup.medianSlipDays > 0
+        ? `Supplier confirmed ${fmt(po.confirmedDate)}; this supplier typically slips ~${sup.medianSlipDays} days, so ETA ~${fmt(eta)}`
+        : `Supplier confirmed ${fmt(po.confirmedDate)}`;
+      if (sup.medianSlipDays >= 5) flags.push("chronicSlipper");
+    } else {
+      eta = addDays(po.promiseDate, sup.medianSlipDays); conf = 1; source = "Promise date only";
+      basis = `Only the original promise date (${fmt(po.promiseDate)})` +
+        (sup.medianSlipDays > 0 ? ` + typical slip of ~${sup.medianSlipDays} days` : "");
+    }
+    if (po.expedited) {
+      eta = addDays(eta, -po.expedited.days);
+      basis += `; expedited ${plural(po.expedited.days, "day")} earlier to ${fmt(eta)}`;
+      flags.push("expedited");
+    }
+
+    const reasons = [];
+    if (age > s.staleDays && !po.carrier) { conf = 1; flags.push("stale"); reasons.push(`no update in ${age} days`); }
+    // A missing reason only matters when the date slips later; pull-ins and confirmations don't need one
+    if (po.lastChange && !po.lastChange.reason && diff(po.lastChange.to, po.lastChange.from) > 0) { conf = 1; flags.push("noReason"); reasons.push("date slipped with no reason given"); }
+    if (!reasons.length) {
+      if (conf === 3) reasons.push(source === "Carrier tracking" ? "in transit with carrier" : "shipped, ship notice received");
+      else if (conf === 2) reasons.push(source === "Supplier milestone" ? `milestone update ${age}d ago` : `confirmed ${age}d ago`);
+      else reasons.push("no confirmation from supplier");
+    }
+    return { eta, conf, confName: CONF_NAME[conf], source, basis, age, flags, confReason: reasons.join("; "),
+             signalLabel: `${po.lastSignal.source}, ${age === 0 ? "today" : age === 1 ? "1 day ago" : age + " days ago"}` };
+  }
+
+  // ---------- inventory helpers ----------
+  function invRow(state, part, wh) { return state.inventory.find((r) => r.part === part && r.wh === wh); }
+  function availNow(row) {
+    if (!row) return 0;
+    return Math.max(0, row.onHand - (row.mrbHold || 0) - (row.inspection ? row.inspection.qty : 0));
+  }
+  const whName = (state, id) => (state.warehouses.find((w) => w.id === id) || {}).name || id;
+
+  // ---------- core computation ----------
+  function compute(state, settingsIn) {
+    const s = Object.assign({}, DEFAULT_SETTINGS, settingsIn || {});
+    const today = state.today, site = state.productionSite;
+    const sup = index(state.suppliers), parts = index(state.parts), builds = state.builds;
+    const transfers = state.transfers || [];
+
+    const poInfo = {};
+    state.poLines.forEach((po) => { const e = etaFor(po, sup[po.supplier], today, s); if (e) poInfo[po.id] = e; });
+
+    // Supply pools per part at the production site
+    const pools = {};
+    const partsNeeded = new Set(); builds.forEach((b) => b.bom.forEach(([p]) => partsNeeded.add(p)));
+    partsNeeded.forEach((p) => {
+      const row = invRow(state, p, site);
+      const list = [];
+      const now = availNow(row);
+      if (now > 0) list.push({ kind: "onhand", ref: "onhand", label: "On hand (available)", qty: now, date: today, conf: 3 });
+      if (row && row.inspection && row.inspection.qty > 0)
+        list.push({ kind: "inspection", ref: "insp", label: `In inspection, clears ${fmt(row.inspection.clearsOn)}`, qty: row.inspection.qty, date: row.inspection.clearsOn, conf: 2 });
+      state.poLines.filter((po) => po.part === p && po.dest === site && poInfo[po.id]).forEach((po) => {
+        const e = poInfo[po.id];
+        list.push({ kind: "po", ref: po.id, label: `${po.id} (${sup[po.supplier].name})`, qty: po.qty, date: e.eta, conf: e.conf, po: po.id });
+      });
+      transfers.filter((t) => t.part === p && t.to === site).forEach((t) =>
+        list.push({ kind: "transfer", ref: t.id, label: `Transfer from ${whName(state, t.from)}`, qty: t.qty, date: t.arrive, conf: 3, transfer: t.id }));
+      list.sort((a, b) => diff(a.date, b.date) || b.conf - a.conf);
+      list.forEach((x) => (x.remaining = x.qty));
+      pools[p] = list;
+    });
+
+    // Allocate in need-date order (earliest build gets supply first)
+    const order = [...builds].sort((a, b) => diff(a.needDate, b.needDate) || a.id.localeCompare(b.id));
+    const consumedBy = {};
+    const allocations = {}; // ref -> [{build, qty}]
+    const results = {};
+    order.forEach((b) => {
+      const lines = b.bom.map(([p, req]) => {
+        const pool = pools[p];
+        let need = req; const used = [];
+        const earlier = (consumedBy[p] || []).slice();
+        for (const src of pool) {
+          if (need <= 0) break;
+          if (src.remaining <= 0 || diff(src.date, b.needDate) > 0) continue;
+          const take = Math.min(src.remaining, need);
+          src.remaining -= take; need -= take;
+          used.push({ ...src, qty: take });
+          if (src.kind === "po" || src.kind === "transfer") (allocations[src.ref] = allocations[src.ref] || []).push({ build: b.id, qty: take });
+        }
+        const alloc = req - need;
+        if (alloc > 0) (consumedBy[p] = consumedBy[p] || []).push({ build: b.id, name: b.name, qty: alloc });
+        const late = pool.filter((x) => x.remaining > 0 && diff(x.date, b.needDate) > 0);
+        const latestDate = used.length ? used.reduce((m, x) => (diff(x.date, m) > 0 ? x.date : m), used[0].date) : null;
+        const minConf = used.length ? Math.min(...used.map((x) => x.conf)) : null;
+        const slack = latestDate ? diff(b.needDate, latestDate) : null;
+        let status = "Clear"; const why = [];
+        const short = need;
+        if (short > 0) {
+          status = "Blocked";
+          why.push(alloc > 0 ? `Short ${short} of ${req}: only ${alloc} can be available by ${fmt(b.needDate)}.`
+                             : `Short ${short} of ${req}: none can be available by ${fmt(b.needDate)}.`);
+          if (late.length) { const d = diff(late[0].date, b.needDate); why.push(`Next supply, ${late[0].label}, is expected ${fmt(late[0].date)}: ${plural(d, "day")} after the need date.`); }
+          else why.push("No other inbound supply is on order.");
+        } else if (minConf === 1) {
+          status = "At Risk";
+          const weak = used.find((x) => x.conf === 1);
+          why.push(`Covered on paper, but it relies on a low-confidence signal (${weak.label}: ${weak.po ? poInfo[weak.po].confReason : "unverified"}).`);
+        } else if (slack !== null && slack < s.slackDays) {
+          status = "At Risk";
+          why.push(`Covered, but with only ${plural(slack, "day")} of slack before the need date (threshold: ${s.slackDays}).`);
+        }
+        const byNeed = pool.filter((x) => diff(x.date, b.needDate) <= 0).map((x) => ({ kind: x.kind, label: x.label, qty: x.qty, date: x.date, conf: x.conf }));
+        return { part: p, partName: parts[p].name, req, alloc, short, used, late, earlier, byNeed, latestDate, minConf, slack, status, why };
+      });
+      results[b.id] = { build: b, lines };
+    });
+
+    const out = builds.map((b) => {
+      const r = results[b.id];
+      const worst = [...r.lines].sort((x, y) =>
+        STATUS_ORDER[x.status] - STATUS_ORDER[y.status] || y.short - x.short || (x.minConf || 9) - (y.minConf || 9) || (x.slack ?? 99) - (y.slack ?? 99))[0];
+      const status = worst.status;
+      const limiting = status === "Clear" ? null : worst;
+      const recs = limiting ? recommend(state, s, b, limiting, poInfo, sup, clearCandidates(results, b)) : [];
+      const keySrc = limiting
+        ? (limiting.short > 0 ? limiting.late[0] : limiting.used.find((x) => x.conf === limiting.minConf && x.po) || limiting.used[limiting.used.length - 1])
+        : null;
+      const keyPo = keySrc && keySrc.po ? keySrc.po : null;
+      const allUsed = r.lines.flatMap((l) => l.used);
+      const clearConf = allUsed.length ? Math.min(...allUsed.map((u) => u.conf)) : 3;
+      const clearLatest = allUsed.length ? allUsed.reduce((m, u) => (diff(u.date, m) > 0 ? u.date : m), allUsed[0].date) : null;
+      const clearMinSlack = Math.min(...r.lines.map((l) => (l.slack ?? 99)));
+      // Build-level freshness: a build is only as fresh as the least-fresh PO it relies on (stock on hand counts as fresh)
+      const relied = [...new Set([...allUsed.filter((u) => u.po).map((u) => u.po), ...(keyPo ? [keyPo] : [])])];
+      const fresh = relied.some((id) => poInfo[id].flags.includes("stale")) ? "stale"
+        : relied.some((id) => poInfo[id].age * 24 > s.freshHours) ? "aging" : "fresh";
+      const stalePos = relied.filter((id) => poInfo[id].flags.includes("stale"));
+      return {
+        freshness: fresh, stalePos,
+        id: b.id, name: b.name, needDate: b.needDate, status, lines: r.lines, limiting, recs,
+        keyPo, keyInfo: keyPo ? poInfo[keyPo] : null,
+        etaDisplay: limiting ? (limiting.short > 0 ? (limiting.late[0] ? limiting.late[0].date : null) : limiting.latestDate) : null,
+        confDisplay: limiting ? (keyPo ? poInfo[keyPo].conf : (limiting.minConf || 3)) : 3,
+        partsAffected: limiting ? builds.filter((x) => x.bom.some(([p]) => p === limiting.part)).length : 0,
+        clearConf, clearLatest: clearLatest && diff(clearLatest, today) > 0 ? clearLatest : null, clearMinSlack
+      };
+    });
+    out.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || diff(a.needDate, b.needDate) || a.confDisplay - b.confDisplay || b.partsAffected - a.partsAffected);
+    const statusById = index(out);
+
+    // Coverage banner
+    const open = state.poLines.filter((po) => !po.indirect && poInfo[po.id]);
+    const fresh = open.filter((po) => poInfo[po.id].age * 24 <= s.freshHours);
+    const stale = open.filter((po) => poInfo[po.id].flags.includes("stale")).map((po) => ({
+      po: po.id, supplier: sup[po.supplier].name, part: parts[po.part].name, age: poInfo[po.id].age,
+      chased: !!(po.chase && !po.chase.repliedAt),
+      atRiskBuilds: out.filter((b) => b.status !== "Clear" && b.keyPo === po.id).map((b) => b.name)
+    }));
+    const aging = open.filter((po) => poInfo[po.id].age * 24 > s.freshHours && !poInfo[po.id].flags.includes("stale")).map((po) => ({
+      po: po.id, supplier: sup[po.supplier].name, age: poInfo[po.id].age,
+      atRiskBuilds: out.filter((b) => b.status !== "Clear" && b.keyPo === po.id).map((b) => b.name)
+    }));
+    const bFresh = out.filter((b) => b.freshness === "fresh"), bAging = out.filter((b) => b.freshness === "aging"), bStale = out.filter((b) => b.freshness === "stale");
+    const staleToChase = [...new Set(bStale.flatMap((b) => b.stalePos))].map((id) => {
+      const po = state.poLines.find((p) => p.id === id);
+      return { po: id, supplier: sup[po.supplier].name, age: poInfo[id].age, chased: !!(po.chase && !po.chase.repliedAt) };
+    });
+    const coverage = {
+      fresh: fresh.length, total: open.length, pct: Math.round((100 * fresh.length) / Math.max(1, open.length)), stale, aging,
+      builds: { total: out.length, fresh: bFresh.length, aging: bAging.map((b) => b.name), stale: bStale.map((b) => b.name), staleToChase }
+    };
+
+    // Dock-to-stock: receipts at the site in the next 3 days, with a handling recommendation
+    const buildById = index(builds);
+    const receipts = [];
+    state.poLines.filter((po) => !po.indirect && po.dest === site && poInfo[po.id]).forEach((po) => {
+      const e = poInfo[po.id]; if (diff(e.eta, today) < 0 || diff(e.eta, today) > 3) return;
+      receipts.push({ ref: po.id, kind: "po", part: po.part, qty: po.qty, eta: e.eta, source: e.source, tier: sup[po.supplier].tier, from: sup[po.supplier].name });
+    });
+    transfers.filter((t) => t.to === site && diff(t.arrive, today) >= 0 && diff(t.arrive, today) <= 3).forEach((t) =>
+      receipts.push({ ref: t.id, kind: "transfer", part: t.part, qty: t.qty, eta: t.arrive, source: "Internal transfer", tier: 0, from: whName(state, t.from) }));
+    const dock = receipts.map((r) => {
+      const feeds = (allocations[r.ref] || []).map((a) => ({ ...a, b: buildById[a.build], st: statusById[a.build] }))
+        .sort((x, y) => diff(x.b.needDate, y.b.needDate));
+      const urgent = feeds.filter((f) => f.st.status !== "Clear" || diff(f.b.needDate, r.eta) <= s.slackDays);
+      let priority, action, why;
+      if (urgent.length) {
+        priority = "High"; action = r.tier === 3 ? "Fast-track receiving inspection, then kit" : "Receive same day and kit";
+        const f = urgent[0];
+        why = f.st.status !== "Clear"
+          ? `Feeds ${f.b.name} (${f.st.status.toLowerCase()}, needed ${fmt(f.b.needDate)}).`
+          : `Feeds ${f.b.name}, needed ${fmt(f.b.needDate)}: only ${plural(diff(f.b.needDate, r.eta), "day")} after arrival.`;
+      } else if (feeds.length) {
+        priority = "Medium"; action = "Receive and kit within 48 hours";
+        why = `Feeds ${feeds[0].b.name}, needed ${fmt(feeds[0].b.needDate)}; enough buffer for standard flow.`;
+      } else {
+        priority = "Low"; action = "Standard put-away"; why = "Replenishment; no build is waiting on it.";
+      }
+      return { ...r, partName: parts[r.part].name, feeds: feeds.map((f) => ({ build: f.b.name, id: f.b.id, qty: f.qty, needDate: f.b.needDate, status: f.st.status })),
+               priority, action, why, firstNeed: feeds[0] ? feeds[0].b.needDate : null };
+    }).sort((a, b) => ({ High: 0, Medium: 1, Low: 2 }[a.priority] - { High: 0, Medium: 1, Low: 2 }[b.priority]) ||
+      (a.firstNeed && b.firstNeed ? diff(a.firstNeed, b.firstNeed) : (a.firstNeed ? -1 : b.firstNeed ? 1 : 0)) || diff(a.eta, b.eta));
+
+    // Indirect orders: on time vs. requested date, with a simple recommendation
+    const indirect = state.poLines.filter((po) => po.indirect && poInfo[po.id]).map((po) => {
+      const e = poInfo[po.id]; const lateBy = diff(e.eta, po.requestedDate);
+      let rec;
+      if (lateBy > 0) rec = { title: "Notify requester; accept delay", cost: 0, why: `Arrives ${plural(lateBy, "day")} after the requested date; general-use item, so no expedite.` };
+      else if (e.conf === 1) rec = { title: `Chase ${sup[po.supplier].name}`, cost: 0, why: `On time on paper, but ${e.confReason}.` };
+      else rec = { title: "No action", cost: 0, why: "On time with a reliable signal." };
+      return { po: po.id, part: po.part, partName: parts[po.part].name, supplier: sup[po.supplier].name, qty: po.qty,
+               requested: po.requestedDate, eta: e.eta, conf: e.confName, confReason: e.confReason, status: lateBy > 0 ? `Late ${lateBy}d` : "On time", lateBy, rec };
+    });
+
+    const counts = { Blocked: 0, "At Risk": 0, Clear: 0 }; out.forEach((x) => counts[x.status]++);
+    return { settings: s, builds: out, poInfo, coverage, dock, indirect, counts };
+  }
+
+  // Later builds that could be pulled forward into this slot: clear today AND all their material is in hand by this build's need date
+  function clearCandidates(results, b) {
+    return Object.values(results).filter((r) => diff(r.build.needDate, b.needDate) > 0 &&
+        r.lines.every((l) => l.status === "Clear" && (!l.latestDate || diff(l.latestDate, b.needDate) <= 0)))
+      .map((r) => r.build).sort((x, y) => diff(x.needDate, y.needDate));
+  }
+
+  // ---------- recommendations ----------
+  // Blocked: recommend the cheapest option that actually closes the gap by the need date; else re-sequence.
+  // At risk: recommend the $0 action that fixes the reason (chase a weak signal, pull in a thin date, or wait).
+  function recommend(state, s, b, L, poInfo, sup, clearLater) {
+    const today = state.today, site = state.productionSite, opts = [];
+    const need = b.needDate;
+    const keyPoId = L.short > 0 ? (L.late[0] && L.late[0].po) : (L.used.find((x) => x.conf === L.minConf && x.po) || {}).po;
+    const keyPo = keyPoId ? state.poLines.find((p) => p.id === keyPoId) : null;
+    const ki = keyPo ? poInfo[keyPo.id] : null;
+
+    if (L.short > 0) {
+      const gap = L.short;
+      const row = invRow(state, L.part, site);
+      if (row && row.mrbHold >= gap)
+        opts.push({ type: "mrb", title: "Request MRB disposition", cost: 0, closes: true, contingent: true,
+          effect: `${row.mrbHold} units are on MRB hold; ${gap} needed. If Quality approves use-as-is or rework, the gap closes.`,
+          time: "Depends on Quality review" });
+      state.lanes.filter((ln) => ln.to === site).forEach((ln) => {
+        const r = invRow(state, L.part, ln.from);
+        const transferable = r ? Math.max(0, availNow(r) - (r.safetyStock || 0)) : 0;
+        if (transferable <= 0) return;
+        const arrive = addDays(today, ln.days);
+        const closes = transferable >= gap && diff(arrive, need) <= 0;
+        opts.push({ type: "transfer", title: `Transfer from ${whName(state, ln.from)}`, cost: ln.cost, closes,
+          effect: closes ? `Move ${gap} units (of ${transferable} spare above safety stock); arrives ${fmt(arrive)}.`
+                         : `Only ${transferable} spare above safety stock (need ${gap}); arrives ${fmt(arrive)}. Not enough on its own.`,
+          time: `${plural(ln.days, "day")}`, arrive, from: ln.from, qty: Math.min(gap, transferable), part: L.part });
+      });
+      if (keyPo && keyPo.expedite && !keyPo.expedited && ki) {
+        const newEta = addDays(ki.eta, -keyPo.expedite.days);
+        const closes = diff(newEta, need) <= 0 && keyPo.qty >= gap;
+        opts.push({ type: "expedite", title: `Expedite ${keyPo.id}`, cost: keyPo.expedite.cost, closes,
+          effect: closes ? `${keyPo.expedite.note}: ETA ${fmt(ki.eta)} → ${fmt(newEta)}, before the ${fmt(need)} need date.`
+                         : `${keyPo.expedite.note}: ETA ${fmt(ki.eta)} → ${fmt(newEta)}, still ${plural(diff(newEta, need), "day")} after the need date.`,
+          time: `${plural(keyPo.expedite.days, "day")} earlier`, arrive: newEta, po: keyPo.id, days: keyPo.expedite.days });
+      }
+      if (keyPo && ki && ki.conf === 1)
+        opts.push({ type: "chase", title: `Chase ${sup[keyPo.supplier].name}`, cost: 0, closes: false, po: keyPo.id,
+          effect: `Confirm the real date and reason (${ki.confReason}). Improves confidence; no schedule gain on its own.`, time: "Today", draft: true });
+      // Predicted landing date: first date when inbound supply after the need date covers the shortfall
+      let acc = 0, lands = null;
+      for (const x of L.late) { acc += x.remaining; if (acc >= gap) { lands = x.date; break; } }
+      const slipTo = lands ? `Slip ${b.name} to ${fmt(lands)} (predicted arrival)` : `Hold ${b.name} until supply is secured (nothing inbound covers the gap)`;
+      const swap = clearLater[0];
+      opts.push({ type: "resequence", title: "Re-sequence the build", cost: 0, closes: false, protects: true, lands,
+        effect: swap ? `${slipTo}; pull forward ${swap.name} (${swap.id}, clear, needed ${fmt(swap.needDate)}).`
+                     : `${slipTo} and notify Production.`, time: "Schedule change" });
+
+      const closing = opts.filter((o) => o.closes).sort((a, c) => a.cost - c.cost || (a.contingent ? 1 : 0) - (c.contingent ? 1 : 0));
+      const pick = closing[0] || opts.find((o) => o.type === "resequence");
+      pick.recommended = true;
+      pick.whyPick = closing[0]
+        ? `Cheapest option that closes the ${gap}-unit gap by ${fmt(need)}` + (closing.length > 1 ? ` (vs. ${closing.slice(1).map((o) => o.title + " $" + o.cost.toLocaleString()).join(", ")})` : "") + "."
+        : `No option closes the gap by ${fmt(need)}, so protect the line by re-sequencing.`;
+    } else {
+      if (L.minConf === 1 && keyPo) {
+        opts.push({ type: "chase", title: `Chase ${sup[keyPo.supplier].name}`, cost: 0, resolves: true, recommended: true, draft: true, po: keyPo.id,
+          effect: `Get a fresh, reasoned date (${ki.confReason}). If confirmed, the build turns clear.`, time: "Today",
+          whyPick: "The quantity is covered; the risk is the signal. A $0 chase fixes the root cause." });
+      } else if (keyPo && ki && ki.conf === 3) {
+        opts.push({ type: "wait", title: "Wait and monitor", cost: 0, resolves: true, recommended: true,
+          effect: `Already moving (${lcFirst(ki.basis)}). Arrives ${plural(L.slack, "day")} before need.`, time: "—",
+          whyPick: "Material is already moving with high confidence; paying to expedite buys slack you don't need." });
+      } else if (keyPo) {
+        opts.push({ type: "chase", title: `Ask ${sup[keyPo.supplier].name} to pull in`, cost: 0, resolves: true, recommended: true, draft: true, po: keyPo.id, pullIn: true,
+          effect: `Only ${plural(L.slack, "day")} of slack: ${lcFirst(ki.basis)}. Request a firm, earlier ship date.`, time: "Today",
+          whyPick: "Slack is thin on a medium-confidence date; a pull-in request is free and adds buffer." });
+      } else {
+        opts.push({ type: "wait", title: "Wait for inspection release", cost: 0, resolves: true, recommended: true,
+          effect: "Stock clears inspection before the need date.", time: "—", whyPick: "No action needed beyond monitoring." });
+      }
+      if (keyPo && keyPo.expedite && !keyPo.expedited)
+        opts.push({ type: "expedite", title: `Expedite ${keyPo.id}`, cost: keyPo.expedite.cost, notNeeded: true, po: keyPo.id, days: keyPo.expedite.days,
+          effect: `${keyPo.expedite.note}: ${plural(keyPo.expedite.days, "day")} earlier. Not needed; it already arrives before the need date.`, time: `${plural(keyPo.expedite.days, "day")} earlier` });
+    }
+    return opts;
+  }
+
+  // ---------- decisions that change the plan ----------
+  // Transfers and expedites update the plan immediately; other decisions are logged only.
+  function applyDecision(state, opt) {
+    if (opt.type === "transfer") {
+      state.transfers = state.transfers || [];
+      const id = "TR-" + (1001 + state.transfers.length);
+      state.transfers.push({ id, part: opt.part, qty: opt.qty, from: opt.from, to: state.productionSite, arrive: opt.arrive });
+      const src = invRow(state, opt.part, opt.from); if (src) src.onHand -= opt.qty;
+      return `${id}: ${opt.qty} units from ${whName(state, opt.from)} arriving ${fmt(opt.arrive)}`;
+    }
+    if (opt.type === "expedite") {
+      const po = state.poLines.find((p) => p.id === opt.po);
+      po.expedited = { days: opt.days, cost: opt.cost };
+      return `${po.id} expedited ${plural(opt.days, "day")}`;
+    }
+    if (opt.type === "chase") { markChaseSent(state, opt.po); return `Chase sent for ${opt.po}`; }
+    return null;
+  }
+  function markChaseSent(state, poId) {
+    const po = state.poLines.find((p) => p.id === poId);
+    if (po) po.chase = { sentAt: state.today, repliedAt: null };
+  }
+
+  // ---------- apply a confirmed supplier update (from the intake) ----------
+  function applyUpdate(state, u) {
+    const po = state.poLines.find((p) => p.id === u.po);
+    if (!po) throw new Error("Unknown PO " + u.po);
+    const today = state.today;
+    const sup = state.suppliers.find((x) => x.id === po.supplier);
+    if (po.milestone) {
+      const st = po.milestone.stages;
+      const ship = st.find((x) => x.key === "shipped");
+      if (u.newShipDate) {
+        const shift = diff(u.newShipDate, ship.planned);
+        if (shift !== 0) {
+          po.lastChange = { from: ship.planned, to: u.newShipDate, at: today, reason: u.reason || null };
+          st.forEach((x) => { if (!x.done) x.planned = addDays(x.planned, shift); });
+        }
+      }
+      if (u.milestone) {
+        const idx = st.findIndex((x) => x.key === u.milestone);
+        st.forEach((x, i) => { if (i <= idx && !x.done) x.done = today; });
+        if (u.milestone === "shipped") po.asn = { shipDate: today, eta: addDays(today, sup.transitDays) };
+      }
+    } else if (u.newShipDate) {
+      const newDelivery = addDays(u.newShipDate, sup.transitDays);
+      po.lastChange = { from: po.confirmedDate || po.promiseDate, to: newDelivery, at: today, reason: u.reason || null };
+      po.confirmedDate = newDelivery;
+    }
+    po.lastSignal = { source: "Supplier email (AI-extracted, human-confirmed)", at: today };
+    if (po.chase && !po.chase.repliedAt) po.chase.repliedAt = today;
+    return po;
+  }
+
+  const API = { compute, applyUpdate, applyDecision, markChaseSent, etaFor, fmt, addDays, diff, DEFAULT_SETTINGS, CONF_NAME };
+  root.CTB_RULES = API;
+  if (typeof module !== "undefined") module.exports = API;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+  <script>/* Clear-to-Build Decision Board — UI. All decisions come from rules.js. */
+(function () {
+  const R = window.CTB_RULES, CFG = window.CTB_CONFIG || {};
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmt = R.fmt, money = (n) => (n === 0 ? "$0" : "$" + n.toLocaleString());
+  const statusCls = (s) => s.replace(" ", "");
+  const nowTime = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  let state, decisions, updates, extracted, ui;
+  const settings = { ...R.DEFAULT_SETTINGS };
+  function resetAll() {
+    state = clone(window.CTB_DATA); decisions = []; updates = []; extracted = null;
+    ui = Object.assign(ui || {}, { selected: null, choice: {}, assigned: {}, indirectDone: {}, lastImpact: null, fold: { mat: false, sig: false } });
+  }
+  ui = { tab: "builds", onlyRisk: false, showIndirect: false, filter: null };
+  resetAll();
+  let model = null;
+
+  const sup = () => Object.fromEntries(state.suppliers.map((s) => [s.id, s]));
+  const partsIdx = () => Object.fromEntries(state.parts.map((p) => [p.id, p]));
+  const poById = (id) => state.poLines.find((p) => p.id === id);
+  const awaiting = (po) => po && po.chase && !po.chase.repliedAt;
+
+  function recompute() { model = R.compute(state, settings); render(); }
+
+  function log(entry) {
+    decisions.unshift(Object.assign({ at: nowTime(), cost: 0, followedRec: null, note: "" }, entry));
+  }
+
+  // ---------- header + banner ----------
+  function renderHeader() {
+    const d = new Date(state.today + "T00:00:00Z");
+    $("asof").textContent = "As of " + d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) + " · Material Planner";
+    const c = model.coverage, k = model.counts, B = c.builds;
+    const pct = Math.round((100 * B.fresh) / Math.max(1, B.total));
+    const toChase = B.staleToChase.filter((x) => !x.chased);
+    const fchip = (key, label, cls) => `<button class="fpill ${cls} ${ui.filter === key ? "on" : ""}" data-filter="${key}" title="Click to filter the board">${label}</button>`;
+    $("banner").innerHTML = `
+      <div title="A build counts as fresh only if every purchase order it relies on was updated in the last ${settings.freshHours} hours (stock on hand counts as fresh).">
+        <b>Data freshness:</b> <span class="fscore ${pct >= 75 ? "good" : pct >= 50 ? "mid" : "low"}">${pct}%</span> <b>· ${B.fresh} of ${B.total} builds</b> rest on signals updated in the last ${settings.freshHours} hours
+        ${B.aging.length ? ` · ${fchip("aging", `${B.aging.length} aging`, "agingC")} <span class="agingT">(&gt;3 to ${settings.staleDays} days): ${esc(B.aging.join(", "))}</span>` : ""}
+        ${B.stale.length ? ` · ${fchip("stale", `${B.stale.length} stale`, "staleC")} <span class="staleT">(&gt;${settings.staleDays} days, Low confidence): ${esc(B.stale.join(", "))}</span>` : ""}
+        <div class="sub" style="margin-top:3px">Measured at build level, not PO level.</div></div>
+      <div class="counts">
+        ${toChase.length ? `<button class="primary small" id="chaseStaleBtn">Chase ${toChase.length} stale supplier${toChase.length > 1 ? "s" : ""}</button>` : B.stale.length ? `<span class="chip">Stale suppliers chased · awaiting replies</span>` : ""}
+        ${fchip("Blocked", `${k.Blocked} Blocked`, "pill Blocked")}${fchip("At Risk", `${k["At Risk"]} At Risk`, "pill AtRisk")}${fchip("Clear", `${k.Clear} Clear`, "pill Clear")}</div>`;
+    document.querySelectorAll("#banner .fpill").forEach((p) => p.addEventListener("click", () => {
+      ui.filter = ui.filter === p.dataset.filter ? null : p.dataset.filter;
+      if (ui.tab !== "builds") setTab("builds"); else render();
+    }));
+    const cb = $("chaseStaleBtn");
+    if (cb) cb.onclick = () => {
+      toChase.forEach((x) => R.markChaseSent(state, x.po));
+      log({ build: "Data freshness", wo: toChase.map((x) => x.po).join(", "), status: "—", action: `Chased ${toChase.length} stale supplier${toChase.length > 1 ? "s" : ""} (${toChase.map((x) => x.supplier).join(", ")})`, followedRec: true, note: "Sent (simulated); see Supplier updates" });
+      toast(`Chases sent to ${toChase.length} supplier${toChase.length > 1 ? "s" : ""}. Awaiting replies.`);
+      recompute();
+    };
+    $("tab-indirect").hidden = !ui.showIndirect;
+    $("logCount").textContent = decisions.length || "";
+    const waiting = state.poLines.filter(awaiting).length;
+    $("waitCount").textContent = waiting || "";
+    $("version").textContent = CFG.VERSION || "";
+  }
+
+  // ---------- builds board ----------
+  function renderBuilds() {
+    const f = ui.filter;
+    const rows = model.builds.filter((b) => (!ui.onlyRisk || b.status !== "Clear") &&
+      (!f || (f === "stale" || f === "aging" ? b.freshness === f : b.status === f)));
+    const S = sup();
+    const html = rows.map((b, idx) => {
+      const L = b.limiting;
+      const rec = b.recs.find((o) => o.recommended);
+      const ki = b.keyInfo, kpo = b.keyPo ? poById(b.keyPo) : null;
+      const etaLate = b.etaDisplay && R.diff(b.etaDisplay, b.needDate) > 0;
+      const confName = R.CONF_NAME[b.confDisplay];
+      return `<tr class="row ${ui.selected === b.id ? "selected" : ""}" data-id="${b.id}">
+        <td class="mono sub">${idx + 1}</td>
+        <td><b>${esc(b.name)}</b><div class="sub mono">${b.id}</div></td>
+        <td class="mono">${fmt(b.needDate)}</td>
+        <td><span class="pill ${statusCls(b.status)}">${b.status}</span></td>
+        <td>${L ? `<span class="mono">${L.part}</span><div class="sub">${esc(L.partName)}</div>` : '<span class="sub">—</span>'}</td>
+        <td class="mono ${L && L.short > 0 ? "bad" : ""}">${L ? `${L.alloc} / ${L.req}` : "Covered"}</td>
+        <td class="mono ${etaLate ? "bad" : ""}">${L ? (b.etaDisplay ? fmt(b.etaDisplay) : "No inbound") : (b.clearLatest ? fmt(b.clearLatest) : "On hand")}</td>
+        <td>${L ? `<span class="conf ${confName}">${confName}</span><div class="sub">${esc(ki ? ki.confReason : "inspection release")}</div>`
+               : `<span class="conf ${R.CONF_NAME[b.clearConf]}">${R.CONF_NAME[b.clearConf]}</span><div class="sub">all parts covered, ${b.clearMinSlack >= 99 ? "on hand" : b.clearMinSlack + "+ days slack"}</div>`}</td>
+        <td>${ki ? `<span class="${ki.flags.includes("stale") ? "bad" : ki.age * 24 > settings.freshHours ? "agingT" : ""}">${esc(ki.signalLabel)}</span><div class="sub">${esc(S[kpo.supplier].name)}</div>
+                    ${awaiting(kpo) ? `<span class="chip">Chase sent ${kpo.chase.sentAt === state.today ? "today" : fmt(kpo.chase.sentAt)} · awaiting reply</span>` : ""}`
+               : '<span class="sub">ERP inventory and feeds</span>'}</td>
+        <td class="recCell">${rec ? `${esc(rec.title)}<div class="sub cost">${money(rec.cost)}${rec.contingent ? " · needs Quality OK" : ""}</div>` : '<span class="sub">No action</span>'}</td>
+      </tr>`;
+    }).join("");
+    const fLabel = { Blocked: "Blocked builds", "At Risk": "At Risk builds", Clear: "Clear builds", stale: "Builds on stale signals", aging: "Builds on aging signals" }[f];
+    $("view-builds").innerHTML = `${f ? `<div class="view-head">Filtered: <b>${fLabel}</b> (${rows.length}) · <a href="#" id="clearFilter">Show all</a></div>` : ""}<table>
+      <thead><tr><th>#</th><th>Build</th><th>Need</th><th>Status</th><th>Limiting part</th><th>Avail / Req</th><th title="Predicted arrival at Quincy Yard from the strongest signal: carrier ETA › ship notice › supplier milestones (late steps push it out) › supplier-confirmed date + that supplier's typical slip › promise date + typical slip. For blocked builds, it is the next supply that arrives too late.">Pred. ETA ⓘ</th><th>Confidence</th><th>Latest signal</th><th>Recommended action</th></tr></thead>
+      <tbody>${html || '<tr><td colspan="10" class="empty">Nothing at risk. All builds are clear.</td></tr>'}</tbody></table>`;
+    document.querySelectorAll("#view-builds tr.row").forEach((tr) => tr.addEventListener("click", () => openDrawer(tr.dataset.id)));
+    const cf = $("clearFilter"); if (cf) cf.onclick = (e) => { e.preventDefault(); ui.filter = null; render(); };
+  }
+
+  // ---------- detail drawer ----------
+  function openDrawer(id) { ui.selected = id; if (ui.tab !== "builds") setTab("builds"); else { renderBuilds(); renderDrawer(); } }
+  function closeDrawer() { ui.selected = null; $("drawer").hidden = true; renderBuilds(); }
+
+  function optTag(o) {
+    if (o.closes) return o.contingent ? '<span class="tag cont">Closes gap if approved</span>' : '<span class="tag yes">Closes gap</span>';
+    if (o.resolves) return '<span class="tag yes">Resolves risk</span>';
+    if (o.notNeeded) return '<span class="tag no">Not needed</span>';
+    if (o.protects) return '<span class="tag protect">Protects line</span>';
+    return '<span class="tag no">Doesn\'t close gap</span>';
+  }
+
+  function renderDrawer() {
+    const b = model.builds.find((x) => x.id === ui.selected);
+    if (!b) { $("drawer").hidden = true; return; }
+    const S = sup(), L = b.limiting;
+    let body = "";
+    if (!L) {
+      body = `<div class="sec"><h3>Status</h3><p>All parts are covered with at least ${settings.slackDays} days of slack and medium or high confidence. No action needed.</p></div>`;
+    } else {
+      body += `<div class="sec"><h3>Why it's flagged</h3><ul class="why">${L.why.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>`;
+      const sel = ui.choice[b.id] ?? b.recs.findIndex((o) => o.recommended);
+      const recOpt = b.recs.find((o) => o.recommended);
+      body += `<div class="sec"><h3>Recommended action</h3>
+        ${recOpt && recOpt.whyPick ? `<div class="whypick">${esc(recOpt.whyPick)}</div>` : ""}
+        ${b.recs.map((o, i) => {
+          const po = o.po ? poById(o.po) : null;
+          const sent = o.type === "chase" && awaiting(po);
+          return `<label class="opt ${o.recommended ? "rec" : ""}">
+            <div class="ot"><span><input type="radio" name="opt" value="${i}" ${i === sel ? "checked" : ""}/> ${esc(o.title)}
+              ${o.recommended ? '<span class="tag rec">Recommended</span>' : ""} ${optTag(o)}</span>
+              <span class="meta">${money(o.cost)} · ${esc(o.time)}</span></div>
+            <div class="oe">${esc(o.effect)}</div>
+            ${o.draft ? (sent
+              ? `<div class="chip" style="margin-top:6px">Chase sent ${po.chase.sentAt === state.today ? "today" : fmt(po.chase.sentAt)} · awaiting reply (see Supplier updates)</div>`
+              : `<button class="ghost draftBtn" data-i="${i}" style="margin-top:6px">Draft chase message</button>
+                 <div id="draftBox-${i}" hidden><textarea class="draftTa" id="draft-${i}" rows="11"></textarea>
+                 <button class="primary sendBtn" data-i="${i}" style="margin-top:6px">Send (simulated)</button> <span class="sub">Logs the decision and marks the PO "awaiting reply"</span></div>`) : ""}
+          </label>`;
+        }).join("")}
+        <textarea id="decNote" rows="2" placeholder="Decision note (optional)"></textarea>
+        <div style="margin-top:8px"><button class="primary" id="logBtn">Log decision</button> <span class="sub">Transfers and expedites update the plan immediately</span></div></div>`;
+      body += materialSection(b, L);
+      if (b.keyPo) body += signalSection(b, S);
+    }
+    body += `<div class="sec"><h3>All parts for this build</h3><table><thead><tr><th>Part</th><th>Req</th><th>Avail by need</th><th>Status</th></tr></thead><tbody>
+      ${b.lines.map((l) => `<tr><td><span class="mono">${l.part}</span><div class="sub">${esc(l.partName)}</div></td><td class="mono">${l.req}</td><td class="mono ${l.short ? "bad" : ""}">${l.alloc}</td><td><span class="pill ${statusCls(l.status)}">${l.status}</span></td></tr>`).join("")}
+      </tbody></table></div>`;
+
+    $("drawer").innerHTML = `<div class="dh"><div><h2>${esc(b.name)}</h2><div class="sub mono">${b.id} · need ${fmt(b.needDate)} · Quincy Yard</div></div>
+      <div><span class="pill ${statusCls(b.status)}">${b.status}</span> <button class="close" id="closeBtn" aria-label="Close">×</button></div></div>${body}`;
+    $("drawer").hidden = false;
+    $("closeBtn").onclick = closeDrawer;
+    document.querySelectorAll("#drawer details.fold").forEach((d) => d.addEventListener("toggle", () => (ui.fold[d.dataset.fold] = d.open)));
+    document.querySelectorAll('#drawer input[name=opt]').forEach((r) => r.addEventListener("change", () => (ui.choice[b.id] = +r.value)));
+    document.querySelectorAll("#drawer .draftBtn").forEach((btn) => btn.addEventListener("click", (e) => {
+      e.preventDefault(); const i = +btn.dataset.i;
+      $("draftBox-" + i).hidden = false; $("draft-" + i).value = chaseDraft(b, b.recs[i]); btn.hidden = true;
+    }));
+    document.querySelectorAll("#drawer .sendBtn").forEach((btn) => btn.addEventListener("click", (e) => {
+      e.preventDefault(); const o = b.recs[+btn.dataset.i];
+      R.markChaseSent(state, o.po);
+      log({ build: b.name, wo: b.id, status: b.status, action: `Chase sent to ${sup()[poById(o.po).supplier].name} (${o.po})`, followedRec: !!o.recommended, note: "Message sent (simulated)" });
+      toast(`Chase sent to ${sup()[poById(o.po).supplier].name}. Awaiting reply.`);
+      recompute();
+    }));
+    const lb = $("logBtn");
+    if (lb) lb.onclick = () => {
+      const o = b.recs[ui.choice[b.id] ?? b.recs.findIndex((x) => x.recommended)];
+      const before = b.status;
+      const effect = R.applyDecision(state, o);
+      log({ build: b.name, wo: b.id, status: before, action: o.title, cost: o.cost, followedRec: !!o.recommended, note: [($("decNote").value || "").trim(), effect].filter(Boolean).join(" · ") });
+      model = R.compute(state, settings);
+      const after = model.builds.find((x) => x.id === b.id).status;
+      toast(effect && after !== before ? `Logged. Plan updated: ${b.name} ${before} → ${after}` : `Decision logged: ${o.title}`);
+      render();
+    };
+  }
+
+  function materialSection(b, L) {
+    const site = state.productionSite;
+    const row = state.inventory.find((r) => r.part === L.part && r.wh === site) || { onHand: 0, mrbHold: 0 };
+    const insp = row.inspection;
+    const avail = Math.max(0, row.onHand - (row.mrbHold || 0) - (insp ? insp.qty : 0));
+    const adds = L.byNeed.filter((u) => u.kind !== "onhand");
+    const totalByNeed = L.byNeed.reduce((s, u) => s + u.qty, 0);
+    const earlierQty = L.earlier.reduce((s, e) => s + e.qty, 0);
+    const others = state.inventory.filter((r) => r.part === L.part && r.wh !== site).map((r) => {
+      const wh = state.warehouses.find((w) => w.id === r.wh).name;
+      const a = Math.max(0, r.onHand - (r.mrbHold || 0)); const spare = Math.max(0, a - (r.safetyStock || 0));
+      return `${wh}: ${a} available, ${spare} spare above safety stock`;
+    });
+    const signals = [];
+    if (L.short) signals.push(`<span class="bad">Short ${L.short} ·${L.alloc} of ${L.req} by ${fmt(b.needDate)}</span>`);
+    else signals.push(`<span class="${L.slack !== null && L.slack < settings.slackDays ? "warn" : "sub"}">${L.alloc} of ${L.req} by ${fmt(b.needDate)}${L.slack !== null ? ` · ${L.slack}d slack` : ""}</span>`);
+    if (row.mrbHold) signals.push(`<span class="bad">${row.mrbHold} on MRB hold</span>`);
+    if (earlierQty) signals.push(`<span class="sub">${earlierQty} allocated to earlier builds</span>`);
+    return `<details class="sec fold" data-fold="mat" ${ui.fold.mat ? "open" : ""}><summary><span class="ft">Material picture · ${L.part} ${esc(L.partName)}</span><span class="fs">${signals.join(" · ")}</span></summary>
+      <table class="ledger"><tbody>
+        <tr><td>On hand at Quincy Yard</td><td class="n">${row.onHand}</td></tr>
+        ${row.mrbHold ? `<tr><td>− On MRB hold (non-conforming, awaiting disposition)</td><td class="n bad">−${row.mrbHold}</td></tr>` : ""}
+        ${insp ? `<tr><td>− In inspection (clears ${fmt(insp.clearsOn)})</td><td class="n">−${insp.qty}</td></tr>` : ""}
+        <tr><td><b>= Available now</b></td><td class="n"><b>${avail}</b></td></tr>
+        ${adds.map((u) => `<tr><td>+ ${esc(u.label)} · ${fmt(u.date)} · <span class="conf ${R.CONF_NAME[u.conf]}">${R.CONF_NAME[u.conf]}</span></td><td class="n">+${u.qty}</td></tr>`).join("")}
+        ${adds.length ? `<tr><td>= Supply by ${fmt(b.needDate)}</td><td class="n">${totalByNeed}</td></tr>` : ""}
+        ${earlierQty ? `<tr><td>− Allocated to earlier-need builds (${L.earlier.map((e) => esc(e.name) + ": " + e.qty).join(", ")})</td><td class="n">−${earlierQty}</td></tr>` : ""}
+        <tr class="total"><td>Available for this build by ${fmt(b.needDate)}</td><td class="n ${L.short ? "bad" : ""}">${L.alloc} / ${L.req}</td></tr>
+        ${L.short ? `<tr><td class="bad">Short</td><td class="n bad">−${L.short}</td></tr>` : ""}
+        ${L.late.map((u) => `<tr><td class="sub">Arrives too late: ${esc(u.label)} · ${fmt(u.date)}</td><td class="n sub">${u.remaining}</td></tr>`).join("")}
+      </tbody></table>
+      ${others.length ? `<div class="sub" style="margin-top:6px">Other sites: ${esc(others.join(" · "))}</div>` : ""}</details>`;
+  }
+
+  function signalSection(b, S) {
+    const po = poById(b.keyPo), info = model.poInfo[po.id], s = S[po.supplier];
+    let ms = "";
+    if (po.milestone) {
+      const st = po.milestone.stages, next = st.find((x) => !x.done);
+      ms = `<div class="milestones">${st.map((x, i) => {
+        const late = !x.done && next === x && R.diff(state.today, x.planned) > 0;
+        return `<div class="ms ${x.done ? "done" : ""} ${late ? "late" : ""}"><div class="dot">${x.done ? "✓" : i + 1}</div>${esc(x.label)}<div class="sub">${x.done ? "Done " + fmt(x.done) : "Plan " + fmt(x.planned)}</div></div>`;
+      }).join("")}</div>`;
+    }
+    const flags = [];
+    if (info.flags.includes("stale")) flags.push(`<span class="bad">no update in ${info.age} days</span>`);
+    if (info.flags.includes("noReason")) flags.push('<span class="bad">date changed, no reason</span>');
+    if (info.flags.includes("milestoneLate")) flags.push('<span class="bad">milestone late</span>');
+    if (info.flags.includes("chronicSlipper")) flags.push(`<span class="warn">typically slips ~${s.medianSlipDays}d</span>`);
+    if (awaiting(po)) flags.push('<span class="chip">chase sent, awaiting reply</span>');
+    const fsum = `<span class="conf ${info.confName}">${info.confName}</span> ${flags.length ? "· " + flags.join(" · ") : `<span class="sub">· ${esc(info.confReason)}</span>`}`;
+    return `<details class="sec fold" data-fold="sig" ${ui.fold.sig ? "open" : ""}><summary><span class="ft">Supplier signal · ${po.id} · ${esc(s.name)}</span><span class="fs">${fsum}</span></summary>
+      <div class="kv">
+        <div class="k">Supplier</div><div>${esc(s.name)} · Tier ${s.tier} · ${esc(s.channel)}</div>
+        <div class="k">Track record</div><div>${s.medianSlipDays ? `Typically ships ~${s.medianSlipDays} days late` : "Typically on time"}</div>
+        <div class="k">ETA basis</div><div>${esc(info.basis)}</div>
+        <div class="k">Confidence</div><div><span class="conf ${info.confName}">${info.confName}</span> · ${esc(info.confReason)}</div>
+        <div class="k">Latest signal</div><div>${esc(info.signalLabel)}${awaiting(po) ? ' · <span class="chip">chase sent, awaiting reply</span>' : ""}</div>
+        ${po.lastChange ? `<div class="k">Last date change</div><div>${fmt(po.lastChange.from)} → ${fmt(po.lastChange.to)} · ${po.lastChange.reason ? esc(po.lastChange.reason) : '<span class="bad">No reason given</span>'}</div>` : ""}
+        ${po.note ? `<div class="k">Note</div><div>${esc(po.note)}</div>` : ""}
+      </div>${ms}</details>`;
+  }
+
+  // Supplier-facing chase draft: only facts the supplier already knows (no internal slip adjustments)
+  function chaseDraft(b, o) {
+    const po = poById(o.po), s = sup()[po.supplier], part = partsIdx()[po.part], info = model.poInfo[po.id];
+    const facts = [];
+    if (po.milestone) {
+      const st = po.milestone.stages, cur = [...st].reverse().find((x) => x.done), next = st.find((x) => !x.done), ship = st.find((x) => x.key === "shipped");
+      facts.push(`Our last update showed the order at "${cur ? cur.label : "not started"}"${next ? `, with "${next.label}" planned for ${fmt(next.planned)}` : ""} and shipment planned for ${fmt(ship.planned)}.`);
+    } else if (po.confirmedDate) facts.push(`Your confirmed delivery date is ${fmt(po.confirmedDate)}.`);
+    else facts.push(`Your original promise date is ${fmt(po.promiseDate)}, and we haven't received a confirmation.`);
+    if (info.flags.includes("stale")) facts.push(`We haven't had an update since ${fmt(po.lastSignal.at)}.`);
+    if (info.flags.includes("noReason")) facts.push(`The date recently moved from ${fmt(po.lastChange.from)} to ${fmt(po.lastChange.to)}; could you share what changed?`);
+    const ask = o.pullIn
+      ? "That leaves us very little buffer. Is there any way to pull in the ship date? Please reply with your firm ship date and where the order is today."
+      : "Could you reply with (1) where the order is today (raw material, machining, QC, shipped), (2) your firm ship date, and (3) the reason for any change?";
+    return `To: ${s.name}\nSubject: ${po.id} · ${part.name} · ${o.pullIn ? "pull-in request" : "status and date confirmation"}\n\nHi team,\n\nWe need ${po.qty} × ${part.name} (${po.part}) at Quincy Yard by ${fmt(b.needDate)} for work order ${b.id}. ${facts.join(" ")}\n\n${ask}\n\nThanks,\nMaterial Planning`;
+  }
+
+  // ---------- dock-to-stock ----------
+  function renderDock() {
+    const high = model.dock.filter((d) => d.priority === "High").length;
+    const rows = model.dock.map((d, i) => {
+      const done = ui.assigned[d.ref];
+      return `<tr>
+        <td class="mono">${i + 1}</td>
+        <td><span class="pill ${d.priority === "High" ? "Blocked" : d.priority === "Medium" ? "AtRisk" : "Clear"}">${d.priority}</span></td>
+        <td class="mono">${d.ref}<div class="sub">${esc(d.from)} · ${esc(d.source)}</div></td>
+        <td><span class="mono">${d.part}</span><div class="sub">${esc(d.partName)}</div></td>
+        <td class="mono">${d.qty}</td><td class="mono">${fmt(d.eta)}</td>
+        <td>${d.feeds.length ? d.feeds.map((f) => `<div><a href="#" class="buildLink" data-id="${f.id}">${esc(f.build)}</a> <span class="sub">${f.qty} · need ${fmt(f.needDate)}</span> <span class="pill ${statusCls(f.status)}">${f.status}</span></div>`).join("") : '<span class="sub">No build waiting</span>'}</td>
+        <td><b>${esc(d.action)}</b><div class="sub">${esc(d.why)}</div></td>
+        <td>${done ? `<span class="chip ok">Assigned ${esc(done)}</span>` : `<button class="ghost assignBtn" data-ref="${d.ref}">Assign to receiving</button>`}</td></tr>`;
+    }).join("");
+    $("view-dock").innerHTML = `<div class="view-head"><b>${model.dock.length} receipts</b> arriving at Quincy Yard in the next 3 days · <b>${high} high priority</b>. Ranked by the builds each receipt unblocks; transfers you approve on the board appear here automatically.</div>
+      <table><thead><tr><th>#</th><th>Priority</th><th>Receipt</th><th>Part</th><th>Qty</th><th>ETA</th><th>Feeds</th><th>Recommended handling</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="9" class="empty">Nothing arriving in the next 3 days.</td></tr>'}</tbody></table>`;
+    document.querySelectorAll("#view-dock .assignBtn").forEach((btn) => btn.addEventListener("click", () => {
+      const d = model.dock.find((x) => x.ref === btn.dataset.ref);
+      ui.assigned[d.ref] = nowTime();
+      log({ build: d.feeds[0] ? d.feeds[0].build : "Replenishment", wo: d.feeds[0] ? d.feeds[0].id : "", status: d.feeds[0] ? d.feeds[0].status : "—", action: `Dock plan: ${d.action} (${d.ref}, ${d.qty} × ${d.part})`, followedRec: true, note: "Assigned to receiving lead (simulated)" });
+      toast(`Assigned to receiving: ${d.ref}`); render();
+    }));
+    document.querySelectorAll("#view-dock .buildLink").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openDrawer(a.dataset.id); }));
+  }
+
+  // ---------- indirect ----------
+  function renderIndirect() {
+    const rows = model.indirect.map((x) => {
+      const done = ui.indirectDone[x.po];
+      return `<tr><td class="mono">${x.po}</td><td>${esc(x.partName)}<div class="sub mono">${x.part}</div></td><td>${esc(x.supplier)}</td><td class="mono">${x.qty}</td><td class="mono">${fmt(x.requested)}</td><td class="mono ${x.lateBy > 0 ? "bad" : ""}">${fmt(x.eta)}</td>
+      <td><span class="conf ${x.conf}">${x.conf}</span><div class="sub">${esc(x.confReason)}</div></td><td>${x.lateBy > 0 ? `<span class="bad">${x.status}</span>` : x.status}</td>
+      <td><b>${esc(x.rec.title)}</b><div class="sub">${esc(x.rec.why)}</div></td>
+      <td>${x.rec.title === "No action" ? "" : done ? `<span class="chip ok">Done ${esc(done)}</span>` : `<button class="ghost indBtn" data-po="${x.po}">Do it (simulated)</button>`}</td></tr>`;
+    }).join("");
+    $("view-indirect").innerHTML = `<div class="view-head">Indirect (general-use) orders. Same data model and confidence rules, with lighter actions: they don't gate production, so the default is to inform rather than expedite.</div>
+      <table><thead><tr><th>PO</th><th>Item</th><th>Supplier</th><th>Qty</th><th>Requested</th><th>ETA</th><th>Confidence</th><th>Status</th><th>Recommended</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    document.querySelectorAll("#view-indirect .indBtn").forEach((btn) => btn.addEventListener("click", () => {
+      const x = model.indirect.find((i) => i.po === btn.dataset.po);
+      ui.indirectDone[x.po] = nowTime();
+      if (x.rec.title.startsWith("Chase")) R.markChaseSent(state, x.po);
+      log({ build: "Indirect: " + x.partName, wo: x.po, status: x.status, action: x.rec.title, followedRec: true, note: "Simulated" });
+      toast(`${x.rec.title} (${x.po})`); recompute();
+    }));
+  }
+
+  // ---------- decision log ----------
+  function renderLog() {
+    $("view-log").innerHTML = decisions.length
+      ? `<table><thead><tr><th>Time</th><th>For</th><th>Status then</th><th>Action</th><th>Cost</th><th>Followed rec?</th><th>Note / effect</th></tr></thead><tbody>
+        ${decisions.map((d) => `<tr><td class="mono">${d.at}</td><td>${esc(d.build)}<div class="sub mono">${esc(d.wo)}</div></td><td>${d.status in { Blocked: 1, "At Risk": 1, Clear: 1 } ? `<span class="pill ${statusCls(d.status)}">${d.status}</span>` : esc(d.status)}</td><td>${esc(d.action)}</td><td class="mono">${money(d.cost)}</td><td>${d.followedRec === null ? "—" : d.followedRec ? "Yes" : "No (override)"}</td><td>${esc(d.note)}</td></tr>`).join("")}</tbody></table>`
+      : `<div class="empty">No decisions logged yet. Open a build and log an action.</div>`;
+  }
+
+  // ---------- supplier update intake ----------
+  function renderIntake() {
+    const open = state.poLines.filter((p) => !p.indirect && model.poInfo[p.id]);
+    const P = partsIdx(), S = sup();
+    const live = !!CFG.WORKER_URL;
+    const e = extracted || {};
+    const waiting = state.poLines.filter(awaiting);
+    const buildsFor = (po) => state.builds.filter((b) => b.bom.some(([p]) => p === po.part)).map((b) => b.name);
+    const queue = waiting.length ? `<div class="view-head"><b>Awaiting supplier reply (${waiting.length})</b> · chases you sent from the board</div>
+      <table><thead><tr><th>PO</th><th>Supplier</th><th>Part</th><th>Affects</th><th>Chased</th><th></th></tr></thead><tbody>
+      ${waiting.map((po) => `<tr><td class="mono">${po.id}</td><td>${esc(S[po.supplier].name)}</td><td>${esc(P[po.part].name)}</td><td>${esc(buildsFor(po).join(", ") || "Indirect")}</td><td class="mono">${po.chase.sentAt === state.today ? "Today" : fmt(po.chase.sentAt)}</td>
+        <td><button class="ghost loadReply" data-po="${po.id}">${state.sampleEmails.some((s) => s.cached.po === po.id) ? "Load supplier reply" : "Enter reply"}</button></td></tr>`).join("")}</tbody></table>`
+      : `<div class="view-head">No chases awaiting reply. Send one from a build's detail panel, or process any supplier email below.</div>`;
+
+    $("view-intake").innerHTML = `${queue}<div class="intake" style="border-top:1px solid var(--line)">
+      <div>
+        <div class="field"><label>Pick a sample supplier email or write your own</label>
+          <select id="sampleSel"><option value="">— Write your own —</option>${state.sampleEmails.map((s) => `<option value="${s.id}">${esc(s.label)}</option>`).join("")}</select></div>
+        <div class="field"><textarea id="emailText" rows="8" placeholder="Paste or type a supplier email…"></textarea></div>
+        <button class="primary" id="extractBtn">Extract with AI</button>
+        <div class="note ${live ? "" : "warn"}" style="margin-top:8px">${live ? "Live AI extraction via Cloudflare Worker (Claude). A human confirms every field before anything changes." : "Live AI not configured: sample emails use their cached extraction. Free-text emails can be entered manually on the right."}</div>
+        <div class="note" id="extractStatus" style="margin-top:6px"></div>
+      </div>
+      <div>
+        <div class="field"><label>PO line</label><select id="fPo"><option value="">Select…</option>${open.map((p) => `<option value="${p.id}" ${e.po === p.id ? "selected" : ""}>${p.id} · ${esc(S[p.supplier].name)} · ${esc(P[p.part].name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Milestone reached (Tier 2/3)</label><select id="fMs">
+          ${[["", "None / not stated"], ["raw", "Raw material received"], ["machining", "In machining"], ["oqc", "Outgoing QC passed"], ["shipped", "Shipped"]].map(([v, t]) => `<option value="${v}" ${(e.milestone || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+        <div class="field"><label>New ship date (supplier commitment)</label><input type="date" id="fDate" value="${e.newShipDate || ""}" /></div>
+        <div class="field"><label>Quantity</label><input type="text" id="fQty" value="${e.qty ?? ""}" /></div>
+        <div class="field"><label>Reason for change</label><input type="text" id="fReason" value="${esc(e.reason || "")}" /></div>
+        <div class="note">${e.source ? `Extracted by: ${esc(e.source)}${e.extractionConfidence ? " · extraction confidence: " + esc(e.extractionConfidence) : ""}` : "Fields fill in after extraction. You can edit any field."}</div>
+        <div style="margin-top:10px"><button class="primary" id="applyBtn">Confirm &amp; apply</button></div>
+        <div id="impact">${ui.lastImpact || ""}</div>
+      </div></div>`;
+
+    $("sampleSel").onchange = () => { const s = state.sampleEmails.find((x) => x.id === $("sampleSel").value); $("emailText").value = s ? s.text : ""; };
+    $("extractBtn").onclick = doExtract;
+    $("applyBtn").onclick = doApply;
+    document.querySelectorAll("#view-intake .loadReply").forEach((btn) => btn.addEventListener("click", () => {
+      const s = state.sampleEmails.find((x) => x.cached.po === btn.dataset.po);
+      ui.lastImpact = null; extracted = { po: btn.dataset.po };
+      renderIntake();
+      if (s) { $("sampleSel").value = s.id; $("emailText").value = s.text; $("extractStatus").textContent = "Supplier reply loaded. Click Extract with AI."; }
+      else { $("extractStatus").textContent = "Paste the supplier's reply, or fill the fields on the right."; $("emailText").focus(); }
+    }));
+    bindImpactLinks();
+  }
+
+  async function doExtract() {
+    const text = $("emailText").value.trim();
+    const sample = state.sampleEmails.find((x) => x.id === $("sampleSel").value && x.text === text);
+    if (!text) { $("extractStatus").textContent = "Paste or pick an email first."; return; }
+    $("extractStatus").textContent = "Extracting…";
+    ui.lastImpact = null;
+    const restore = () => { $("emailText").value = text; if (sample) $("sampleSel").value = sample.id; };
+    if (CFG.WORKER_URL) {
+      try {
+        const open = state.poLines.filter((p) => !p.indirect && model.poInfo[p.id]).map((p) => ({ id: p.id, supplier: sup()[p.supplier].name, part: partsIdx()[p.part].name, hasMilestones: !!p.milestone }));
+        const resp = await fetch(CFG.WORKER_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: text, today: state.today, openPOs: open }) });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const j = await resp.json();
+        extracted = { po: j.po, milestone: j.milestone || "", newShipDate: j.newShipDate || "", qty: j.qty ?? "", reason: j.reason || "", extractionConfidence: j.extractionConfidence, source: "Claude (live)" };
+        renderIntake(); restore();
+        $("extractStatus").textContent = "Extracted live. Review each field, then confirm.";
+        return;
+      } catch (err) {
+        if (!sample) { $("extractStatus").textContent = "AI extraction unavailable (" + err.message + "). Enter the fields manually."; return; }
+      }
+    }
+    if (sample) {
+      extracted = { ...sample.cached, source: CFG.WORKER_URL ? "Cached example (live AI unavailable)" : "Cached example (live AI not configured)" };
+      renderIntake(); restore();
+      $("extractStatus").textContent = "Loaded cached extraction. Review, then confirm.";
+    } else {
+      $("extractStatus").textContent = "Live AI not configured. Enter the fields manually.";
+    }
+  }
+
+  function doApply() {
+    const u = { po: $("fPo").value, milestone: $("fMs").value || null, newShipDate: $("fDate").value || null, qty: $("fQty").value ? +$("fQty").value : null, reason: $("fReason").value.trim() || null };
+    if (!u.po) { $("impact").innerHTML = '<div class="impact">Select a PO line first.</div>'; return; }
+    if (!u.milestone && !u.newShipDate) { $("impact").innerHTML = '<div class="impact">Nothing to apply: add a milestone or a new ship date.</div>'; return; }
+    const before = Object.fromEntries(model.builds.map((b) => [b.id, b.status]));
+    const po = poById(u.po);
+    const wasChased = awaiting(po);
+    R.applyUpdate(state, u);
+    const src = extracted && extracted.source ? extracted.source : "manual entry";
+    updates.push({ po: u.po, source: src });
+    model = R.compute(state, settings);
+    const info = model.poInfo[u.po];
+    const affected = model.builds.filter((b) => b.lines.some((l) => l.part === po.part));
+    log({ build: "Supplier update", wo: u.po, status: "—", action: `Applied supplier update${wasChased ? " (chase reply)" : ""}`, note: `${src}; new ETA ${fmt(info.eta)}` });
+    ui.lastImpact = `<div class="impact"><b>Applied to ${u.po}.</b> New ETA ${fmt(info.eta)} · confidence <span class="conf ${info.confName}">${info.confName}</span>${wasChased ? " · chase closed" : ""}.
+      <table style="margin-top:6px"><tbody>${affected.map((b) => {
+        const rec = b.recs.find((o) => o.recommended);
+        return `<tr><td><b>${esc(b.name)}</b><div class="sub">${before[b.id]} → <span class="pill ${statusCls(b.status)}">${b.status}</span></div></td>
+          <td class="sub">${rec ? "Next: " + esc(rec.title) : "No action needed"}</td><td><button class="ghost openBuild" data-id="${b.id}">Open build</button></td></tr>`;
+      }).join("")}</tbody></table></div>`;
+    extracted = null;
+    render();
+  }
+  function bindImpactLinks() {
+    document.querySelectorAll("#view-intake .openBuild").forEach((btn) => btn.addEventListener("click", () => openDrawer(btn.dataset.id)));
+  }
+
+  // ---------- tabs, controls, misc ----------
+  function setTab(t) {
+    ui.tab = t;
+    document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+    ["builds", "dock", "intake", "indirect", "log"].forEach((v) => ($("view-" + v).hidden = v !== t));
+    $("controls").style.display = t === "builds" ? "flex" : "none";
+    if (t !== "builds") $("drawer").hidden = true;
+    render();
+  }
+
+  function render() {
+    renderHeader();
+    if (ui.tab === "builds") { renderBuilds(); if (ui.selected) renderDrawer(); }
+    if (ui.tab === "dock") renderDock();
+    if (ui.tab === "intake") renderIntake();
+    if (ui.tab === "indirect") renderIndirect();
+    if (ui.tab === "log") renderLog();
+  }
+
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => (t.hidden = true), 3000); }
+
+  document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+  $("onlyRisk").onchange = (e) => { ui.onlyRisk = e.target.checked; render(); };
+  $("slackDays").onchange = (e) => { settings.slackDays = Math.max(0, +e.target.value || 0); recompute(); };
+  $("staleDays").onchange = (e) => { settings.staleDays = Math.max(1, +e.target.value || 1); recompute(); };
+  $("showIndirect").onchange = (e) => { ui.showIndirect = e.target.checked; if (!ui.showIndirect && ui.tab === "indirect") setTab("builds"); else render(); };
+  $("resetBtn").onclick = () => { resetAll(); $("drawer").hidden = true; recompute(); toast("Demo data reset"); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && ui.selected) closeDrawer(); });
+
+  recompute();
+})();
+</script>
+</body>
+</html>
