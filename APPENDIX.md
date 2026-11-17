@@ -151,7 +151,7 @@ I set the problem, the user, the scope, and the 11 scenarios the build had to ge
 | Issue | How it surfaced | Fix |
 |---|---|---|
 | Lovable recommended an expedite that didn't close the gap | Checking the date math on its recommendation | Discarded the tool |
-| The chase draft disclosed our internal slip estimate to the supplier | Reviewing the draft message | Supplier-facing facts only |
+| The first chase-message template (code, not AI) included our internal slip estimate, which a supplier should never see | Claude flagged it while reviewing a screenshot of v1.0 | Templates now state supplier-facing facts only (PO, need date, last update, what we need back) |
 | Re-sequencing suggested a build whose own parts wouldn't arrive in time | Self-critique pass on the scenarios | A swap candidate must have all its parts in hand by the slot date |
 | On a good-news email, the AI correctly left the reason empty, and my rule then penalized it | Live AI test | The AI exposed a flaw in **my** rule: only penalize a date that slips later with no reason |
 | 10 of 15 test emails came back as plain text instead of data | Email test | Forced a structured answer format: 0 errors since |
@@ -163,7 +163,7 @@ I set the problem, the user, the scope, and the 11 scenarios the build had to ge
 | Version | What changed | Why |
 |---|---|---|
 | Before v1.0 | Built a first version in Lovable, then discarded it | It recommended an expedite that didn't close the gap, and its logic couldn't be seen or tested |
-| v1.0–v1.4 (not snapshotted) | First working board, build drawer, supplier intake, dock-to-stock list. Then: a working "Send (simulated)" for chases; live tabs; folded detail sections; a row-number column; more synthetic data (16 builds); chase drafts limited to supplier-facing facts; "Resolves risk" instead of "Closes gap" on at-risk builds; an "aging" state between fresh and stale; freshness measured by build instead of by PO; distinct colors for aging and stale; clickable filter pills | My reviews of each version: what a planner would misread, and what the data could and couldn't support |
+| v1.0–v1.4 (not snapshotted) | First working board, build drawer, supplier intake, dock-to-stock list. Then: a working "Send (simulated)" for chases; live tabs; folded detail sections; a row-number column; more synthetic data (16 builds); chase templates limited to supplier-facing facts; "Resolves risk" instead of "Closes gap" on at-risk builds; an "aging" state between fresh and stale; freshness measured by build instead of by PO; distinct colors for aging and stale; clickable filter pills | My reviews of each version: what a planner would misread, and what the data could and couldn't support |
 | v1.5 | Re-sequencing only suggests a build whose parts are all in hand by the slot date | A self-critique pass found it suggesting a build that was waiting on its own late part |
 | v1.6 | Live AI email extraction through a Cloudflare Worker (key held server-side) | Prove the AI step works on real text, not only on cached examples |
 | v1.7 | A missing reason only lowers confidence when a date slips later | The live AI correctly left the reason empty on a good-news email, and my rule penalized it |
