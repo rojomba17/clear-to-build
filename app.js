@@ -194,7 +194,7 @@
       return `${wh}: ${a} available, ${spare} spare above safety stock`;
     });
     const signals = [];
-    if (L.short) signals.push(`<span class="bad">Short ${L.short} ·${L.alloc} of ${L.req} by ${fmt(b.needDate)}</span>`);
+    if (L.short) signals.push(`<span class="bad">Short ${L.short} · ${L.alloc} of ${L.req} by ${fmt(b.needDate)}</span>`);
     else signals.push(`<span class="${L.slack !== null && L.slack < settings.slackDays ? "warn" : "sub"}">${L.alloc} of ${L.req} by ${fmt(b.needDate)}${L.slack !== null ? ` · ${L.slack}d slack` : ""}</span>`);
     if (row.mrbHold) signals.push(`<span class="bad">${row.mrbHold} on MRB hold</span>`);
     if (earlierQty) signals.push(`<span class="sub">${earlierQty} allocated to earlier builds</span>`);

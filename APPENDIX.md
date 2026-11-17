@@ -110,7 +110,7 @@ The write-up shows the six assumptions that matter most. This is the full set, i
 | Small suppliers will update 3–4 coarse milestones if it's low effort (an email reply or a link) | Solution | Medium | Practitioners (Tier 2 entered status daily or per shift when asked); my Walmart seller experience. Caveat: depends on Anduril's leverage | Not testable in a prototype; open question for the live discussion |
 | Allocating stock to builds in need-date order matches how planners prioritize by default | Solution | Medium-high | Standard MRP allocation practice; cross-program priority conflicts are routed to the Supply Planner | Works as designed: in the seeded conflict, Kit A takes 25 of 30 units and Kit B is Blocked. Priority-blind by design; open question for the live discussion |
 | Transfer time and cost between warehouses can be estimated well enough to compare against expediting | Solution | Medium | Simple lane table in synthetic data (labeled synthetic); my Walmart transfer experience | Sufficient for the comparison: for Muzzle Door, a $180 transfer and a $1,900 expedite both close the gap, so the transfer is recommended |
-| A supplier's slip history predicts future slips | Solution | Medium-high | Scenario checks on synthetic history (labeled synthetic) | The mechanism works (Ballast: quoted Nov 27, predicted Dec 4 from a ~7-day typical slip). Can't be validated on synthetic data; needs real predicted-vs-actual history |
+| A supplier's slip history predicts future slips | Solution | Medium (untested) | Scenario checks on synthetic history (labeled synthetic) | The mechanism works (Ballast: quoted Nov 27, predicted Dec 4 from a ~7-day typical slip). Can't be validated on synthetic data; needs real predicted-vs-actual history |
 | AI can reliably extract PO, quantity, milestone, date, and reason from messy supplier emails | Solution | Testable | 15 realistic emails, 3 runs each, through the live intake (Section B) | 12 of 15 correct in each of 3 runs. No invented reasons in 45 extractions; ambiguous emails left empty 9 of 9; 1 wrong PO in 45. Repeat failures: a delivery date read as a ship date, a shorthand milestone |
 | Ranking by risk with visible confidence builds trust instead of adding noise | Solution | Medium | My Walmart alert-fatigue experience; design review; open question for the live discussion | Not testable without real users. A shadow pilot would test it (Section H) |
 
@@ -144,7 +144,7 @@ The write-up shows the six assumptions that matter most. This is the full set, i
 
 ### How the work was split
 
-I defined the problem, the user, the scope, and the 11 scenarios the build had to get right. Claude wrote the code and challenged my thinking. I reviewed every screen and recommendation against the scenarios, and every change had to pass the automated scenario checks (48 today).
+I set the problem, the user, the scope, and the 11 scenarios the build had to get right. Claude wrote the code and challenged my thinking. I reviewed every screen and recommendation against the scenarios, and every change had to pass the automated scenario checks (48 today).
 
 ### Mistakes, and how they surfaced
 
@@ -172,6 +172,7 @@ I defined the problem, the user, the scope, and the 11 scenarios the build had t
 | Worker update | Forced a structured answer format; turned off the model's extended thinking | 10 of 15 test emails failed with plain-text replies |
 | v2.0 | A delay reported with no new date drops confidence to Low and recommends a chase; the intake now accepts it | The board couldn't record the delay, so it kept trusting the old date. Fresh isn't the same as trusted |
 | v2.1 | Delay chases tagged "Gets the real date"; clearer "why it's flagged" text | A chase can't resolve a reported delay, only reveal how big it is |
+| v2.2 | Header shows "(case demo date)"; spacing fix in the material summary | The demo runs on a fixed date so scenarios behave the same whenever it's opened |
 
 ## H. Trade-offs, Known Gaps, and Next Steps
 
@@ -183,7 +184,7 @@ I defined the problem, the user, the scope, and the 11 scenarios the build had t
 | **Plain code with tests, not a low-code builder** | Logic I can read, verify, and change live | Polish and the fastest first draft | n/a |
 | **Allocation by need date** | Standard MRP practice; simple and predictable | Program priority: an urgent program can't jump the queue | When the Supply Planner workflow is in scope |
 | **One recommended action: the cheapest that closes the gap** | A clear decision, not a menu | Combined fixes (e.g., a partial transfer plus an expedite) and a cost-vs-time weighting | After planner feedback |
-| **The planner logs a re-sequence; the board doesn't rewrite the schedule** | Respects Production's ownership of the schedule | A less "live" demo | When integrated with scheduling |
+| **The planner logs a re-sequence; the board doesn't rewrite the schedule** | Avoids two conflicting versions of the production schedule | A demo where the schedule updates live on screen | When integrated with scheduling |
 | **Paste-in email, human confirms every extraction** | Safe and auditable | Planner effort per email | Once accuracy on real mail justifies auto-applying high-confidence updates |
 | **Freshness measured by build, not by PO** | Measures what the planner cares about: can I trust this build's status? | Stale POs that feed no near-term build don't show in the score | n/a |
 | **Hold the fallback until a delayed supplier gives a date** | Don't act on a guess | Up to a day of lead time | If chase replies prove slow |
