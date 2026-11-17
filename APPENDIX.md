@@ -144,7 +144,7 @@ The write-up shows the six assumptions that matter most. This is the full set, i
 
 ### How the work was split
 
-I set the problem, the user, the scope, and the 11 scenarios the build had to get right. Claude wrote the code and challenged my thinking. I reviewed every screen and recommendation against the scenarios, and every change had to pass the automated scenario checks (48 today).
+I defined the problem, the user, the scope, and the 11 scenarios the build had to get right. Claude wrote the code and challenged my thinking. I reviewed every screen and recommendation against the scenarios, and every change had to pass the automated scenario checks (48 today).
 
 ### Mistakes, and how they surfaced
 
