@@ -69,6 +69,8 @@ All companies, part numbers, and work orders are invented, except Amazon Busines
 - **Suppliers:** 13. Tier 1: 6 (including Amazon and CDW for indirect). Tier 2: 4. Tier 3: 3. Tier = supplier size and data maturity, not position in the supply chain.
 - **Warehouses:** 3 (Quincy Yard, Groton DC, Baltimore Annex), with transfer lanes and costs.
 
+**Real-world scale assumed (estimates, not facts):** hundreds of suppliers across Tier 1–3, a few thousand open PO lines, 4–6 US warehouses, lead times from days (indirect) to 8–16 weeks (machined parts), and multiple ERPs across business lines (the postings name Oracle and NetSuite).
+
 **Eleven seeded scenarios:**
 
 1. Hidden upstream slip (promise date looks fine; milestone is late)
