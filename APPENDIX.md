@@ -188,7 +188,7 @@ I defined the problem, the user, the scope, and the 11 scenarios the build had t
 | **Freshness measured by build, not by PO** | Measures what the planner cares about: can I trust this build's status? | Stale POs that feed no near-term build don't show in the score | n/a |
 | **Hold the fallback until a delayed supplier gives a date** | Don't act on a guess | Up to a day of lead time | If chase replies prove slow |
 
-### Known gaps
+### Known gaps (what I'd fix next)
 
 - **Delivery date vs. ship date:** the AI answer format has no delivery-date field, so "at your dock Wednesday" is read as a ship date (Section B, case 7).
 - **Several POs in one email, and split shipments:** the intake handles one PO and one date per email.
