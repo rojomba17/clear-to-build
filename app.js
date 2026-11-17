@@ -32,7 +32,7 @@
   // ---------- header + banner ----------
   function renderHeader() {
     const d = new Date(state.today + "T00:00:00Z");
-    $("asof").textContent = "As of " + d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) + " · Material Planner";
+    $("asof").textContent = "As of " + d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) + " (case demo date) · Material Planner";
     const c = model.coverage, k = model.counts, B = c.builds;
     const pct = Math.round((100 * B.fresh) / Math.max(1, B.total));
     const toChase = B.staleToChase.filter((x) => !x.chased);
